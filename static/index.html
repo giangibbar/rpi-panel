@@ -636,6 +636,8 @@
     // Also map by BCM number for direct lookup
     window._bcmUsage={};
     sensors.forEach(s=>{if(s.gpio_pin)window._bcmUsage[s.gpio_pin]=s.name||s.type;});
+    // Add kernel-detected usage
+    d.pins.forEach(p=>{if(p.kernel&&!window._bcmUsage[p.pin]){window._bcmUsage[p.pin]=p.kernel.consumer;const phys=bcmToPhys[p.pin];if(phys)window._pinUsage[phys]=p.kernel.consumer;}});
     renderGPIO();}
     function renderGPIO(){
         let html='';for(let i=0;i<HEADER.length;i+=2){html+=renderPin(HEADER[i],'left')+'<div style="display:flex;align-items:center;justify-content:center;color:var(--subtext);font-size:9px">•</div>'+renderPin(HEADER[i+1],'right');}

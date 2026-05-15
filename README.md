@@ -39,7 +39,7 @@ A complete web-based management panel for Raspberry Pi 4, built with **FastAPI +
 - **Wake-on-LAN** — Wake PCs on your network, scan for devices
 
 ### 🔌 Hardware
-- **GPIO** — Visual 40-pin header, click to set HIGH/LOW, assign pins
+- **GPIO** — Visual 40-pin header, click to set HIGH/LOW, auto-detects kernel pin usage (SPI, I2C, UART)
 - **Disk** — Partition info with usage bars
 - **Camera** — Take snapshots (if PiCamera connected)
 

@@ -22,8 +22,29 @@ active_outputs: dict[int, int] = {}
 async def list_pins():
     """List all GPIO pins with their current state."""
     pins = []
+    # Detect kernel-level GPIO usage
+    kernel_usage = {}
+    try:
+        r = subprocess.run(["sudo", "cat", "/sys/kernel/debug/gpio"], capture_output=True, text=True)
+        for line in r.stdout.split("\n"):
+            line = line.strip()
+            if line.startswith("gpio-") and "|" in line:
+                parts = line.split()
+                gpio_num = int(parts[0].replace("gpio-", ""))
+                # Extract the consumer name (between | |)
+                consumer = line.split("|")[1].strip().rstrip(")") if "|" in line else ""
+                direction = "out" if "out" in line else "in"
+                value = "hi" if "hi" in line else "lo"
+                if gpio_num <= 27 and consumer:
+                    kernel_usage[gpio_num] = {"consumer": consumer, "direction": direction, "value": value}
+    except Exception:
+        pass
+
     for pin in USER_PINS:
-        state = {"pin": pin, "value": None, "direction": "input", "active": pin in active_outputs}
+        state = {"pin": pin, "value": None, "direction": "input", "active": pin in active_outputs, "kernel": None}
+        # Check kernel usage
+        if pin in kernel_usage:
+            state["kernel"] = kernel_usage[pin]
         # Try to read current value
         r = subprocess.run(
             ["gpioget", "--bias=as-is", CHIP, str(pin)],
