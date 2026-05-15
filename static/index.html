@@ -7,6 +7,19 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖥️</text></svg>">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/lib/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/theme/material-darker.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/lib/codemirror.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/mode/python/python.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/mode/htmlmixed/htmlmixed.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/mode/css/css.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/mode/xml/xml.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/mode/shell/shell.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/mode/yaml/yaml.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/mode/markdown/markdown.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/mode/toml/toml.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/mode/sql/sql.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root { --bg: #1e1e2e; --surface: #313244; --overlay: #45475a; --text: #cdd6f4; --subtext: #a6adc8; --green: #a6e3a1; --red: #f38ba8; --blue: #89b4fa; --yellow: #f9e2af; --mauve: #cba6f7; }
@@ -49,7 +62,7 @@
         .file-item:hover { background: var(--surface); }
         .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 100; }
         .modal.show { display: flex; }
-        .modal-content { background: var(--surface); border-radius: 8px; padding: 24px; min-width: 350px; max-width: 90vw; max-height: 80vh; overflow: auto; }
+        .modal-content { background: var(--surface); border-radius: 8px; padding: 24px; min-width: 350px; max-width: 90vw; max-height: 80vh; overflow: auto; width: 80vw; }
         .modal-content h3 { margin-bottom: 12px; }
         .modal-content input, .modal-content textarea { width: 100%; padding: 8px; margin: 6px 0; background: var(--bg); border: 1px solid var(--overlay); border-radius: 4px; color: var(--text); font-family: monospace; }
         .modal-content textarea { min-height: 200px; resize: vertical; }
@@ -501,8 +514,15 @@
         document.getElementById('file-list').innerHTML=(currentPath!=='/'?`<div class="file-item" ondblclick="loadFiles('${d.parent}')">📁 ..</div>`:'')+d.items.map(f=>`<div class="file-item" ondblclick="${f.is_dir?`loadFiles('${f.path}')`:`editFile('${f.path}')`}"><span>${f.is_dir?'📁':'📄'}</span><span style="flex:1">${f.name}</span><span style="color:var(--subtext);font-size:11px">${f.is_dir?'':fmtSz(f.size)}</span>${!f.is_dir?`<button class="btn btn-small" style="background:var(--overlay);color:var(--text)" onclick="event.stopPropagation();downloadFile('${f.path}')">⬇</button>`:''}<button class="btn btn-red btn-small" onclick="event.stopPropagation();deleteFile('${f.path}')">✕</button></div>`).join('');
     }
     function fmtSz(b){if(b<1024)return b+'B';if(b<1048576)return(b/1024).toFixed(1)+'K';return(b/1048576).toFixed(1)+'M';}
-    async function editFile(p){const r=await fetch(`/api/files/read?path=${encodeURIComponent(p)}`);const d=await r.json();showModal(`<h3>${p.split('/').pop()}</h3><textarea id="edit-content">${escH(d.content||'')}</textarea><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="saveFile('${p}')">Save</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
-    async function saveFile(p){await fetch('/api/files/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:p,content:document.getElementById('edit-content').value})});closeModal();}
+    async function editFile(p){const r=await fetch(`/api/files/read?path=${encodeURIComponent(p)}`);const d=await r.json();
+    const ext=p.split('.').pop().toLowerCase();
+    const modeMap={py:'python',js:'javascript',ts:'javascript',html:'htmlmixed',css:'css',xml:'xml',sh:'shell',bash:'shell',yml:'yaml',yaml:'yaml',md:'markdown',toml:'toml',sql:'sql',json:{name:'javascript',json:true}};
+    const mode=modeMap[ext]||'';
+    showModal(`<h3 style="display:flex;justify-content:space-between;align-items:center">${p.split('/').pop()}<span style="font-size:11px;color:var(--subtext)">${ext}</span></h3><div id="cm-wrap" style="margin:8px 0;border-radius:4px;overflow:hidden;border:1px solid var(--overlay)"></div><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="saveFileFromEditor('${p}')">Save</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);
+    const cm=CodeMirror(document.getElementById('cm-wrap'),{value:d.content||'',mode:mode,theme:'material-darker',lineNumbers:true,lineWrapping:true,indentUnit:4,tabSize:4,indentWithTabs:false,extraKeys:{'Ctrl-S':()=>saveFileFromEditor(p)}});
+    cm.setSize('100%','65vh');
+    window._activeEditor=cm;}
+    function saveFileFromEditor(p){const content=window._activeEditor.getValue();fetch('/api/files/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:p,content})}).then(()=>closeModal());}
     async function deleteFile(p){if(confirm('Delete?')){await fetch('/api/files/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:p})});loadFiles();}}
     function downloadFile(p){window.open(`/api/files/download?path=${encodeURIComponent(p)}`);}
     function createFilePrompt(d){const n=prompt(d?'Folder name:':'File name:');if(n)fetch('/api/files/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:currentPath+'/'+n,is_dir:d})}).then(()=>loadFiles());}
