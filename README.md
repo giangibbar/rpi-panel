@@ -51,7 +51,7 @@ A complete web-based management panel for Raspberry Pi 4, built with **FastAPI +
 - **MQTT** — Built-in listener for ESP32/ESP8266 devices (`sensors/<id>/<metric>`)
 
 ### 🐍 Dev
-- **Venvs** — List Python virtual environments, manage packages
+- **Venvs** — List Python venvs (version, size, packages), install/upgrade/freeze, run scripts, inline code editor
 - **Ollama** — Status, install, pull models
 
 ### 🔑 Security
