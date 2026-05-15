@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+
+# Runtime data
+history.db
+sensors.db
+alerts.json
+telegram.json
+notes.json
+wol_devices.json
+sensors_config.json
+scripts/
+
+# Environment
+.env

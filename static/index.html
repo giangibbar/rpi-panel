@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPi Panel</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖥️</text></svg>">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { --bg: #1e1e2e; --surface: #313244; --overlay: #45475a; --text: #cdd6f4; --subtext: #a6adc8; --green: #a6e3a1; --red: #f38ba8; --blue: #89b4fa; --yellow: #f9e2af; --mauve: #cba6f7; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', monospace; display: flex; height: 100vh; }
+        #sidebar { width: 220px; background: var(--surface); padding: 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; transition: transform 0.3s; z-index: 50; }
+        #sidebar h1 { font-size: 14px; padding: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--overlay); display: flex; align-items: center; justify-content: space-between; }
+        .nav-btn { background: none; border: none; color: var(--subtext); padding: 9px 12px; text-align: left; border-radius: 6px; cursor: pointer; font-size: 13px; width: 100%; }
+        .nav-btn:hover { background: var(--overlay); color: var(--text); }
+        .nav-btn.active { background: var(--overlay); color: var(--green); }
+        #sidebar .logout { margin-top: auto; color: var(--red); }
+        #menu-toggle { display: none; position: fixed; top: 8px; left: 8px; z-index: 100; background: var(--surface); border: none; color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 18px; cursor: pointer; }
+        #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .page { display: none; flex: 1; overflow: auto; padding: 16px; }
+        .page.active { display: flex; flex-direction: column; }
+        .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+        .card { background: var(--surface); border-radius: 8px; padding: 16px; }
+        .card label { font-size: 11px; color: var(--subtext); text-transform: uppercase; }
+        .card .value { font-size: 24px; font-weight: bold; margin-top: 4px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--overlay); }
+        th { color: var(--subtext); font-size: 11px; text-transform: uppercase; }
+        .btn { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .btn-green { background: var(--green); color: #1e1e2e; }
+        .btn-red { background: var(--red); color: #1e1e2e; }
+        .btn-blue { background: var(--blue); color: #1e1e2e; }
+        .btn-small { padding: 4px 8px; font-size: 11px; }
+        #terminal-page { padding: 0; }
+        .term-tabs { display: flex; background: var(--surface); padding: 4px 8px; gap: 4px; align-items: center; }
+        .term-tab { padding: 6px 12px; background: var(--overlay); border: none; color: var(--subtext); border-radius: 4px 4px 0 0; cursor: pointer; font-size: 12px; }
+        .term-tab.active { background: var(--bg); color: var(--green); }
+        .term-close { margin-left: 6px; color: var(--subtext); font-size: 10px; border-radius: 50%; padding: 1px 4px; }
+        .term-close:hover { color: var(--red); background: var(--overlay); }
+        .term-add { background: none; border: none; color: var(--green); cursor: pointer; font-size: 16px; padding: 4px 8px; }
+        .term-container { flex: 1; position: relative; }
+        .term-instance { position: absolute; inset: 0; display: none; padding: 4px; }
+        .term-instance.active { display: block; }
+        .breadcrumb { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+        .breadcrumb span { color: var(--blue); cursor: pointer; font-size: 13px; }
+        .file-item { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: 4px; cursor: pointer; }
+        .file-item:hover { background: var(--surface); }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 100; }
+        .modal.show { display: flex; }
+        .modal-content { background: var(--surface); border-radius: 8px; padding: 24px; min-width: 350px; max-width: 90vw; max-height: 80vh; overflow: auto; }
+        .modal-content h3 { margin-bottom: 12px; }
+        .modal-content input, .modal-content textarea { width: 100%; padding: 8px; margin: 6px 0; background: var(--bg); border: 1px solid var(--overlay); border-radius: 4px; color: var(--text); font-family: monospace; }
+        .modal-content textarea { min-height: 200px; resize: vertical; }
+        .status-active { color: var(--green); }
+        .status-inactive { color: var(--red); }
+        .alert-banner { padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; font-size: 13px; }
+        .alert-critical { background: rgba(243,139,168,0.2); border: 1px solid var(--red); }
+        .alert-warning { background: rgba(249,226,175,0.2); border: 1px solid var(--yellow); }
+        /* Ollama chat panel */
+        #chat-toggle { position: fixed; top: 12px; right: 12px; z-index: 60; background: var(--mauve); color: #1e1e2e; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 18px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+        #chat-toggle:hover { transform: scale(1.1); }
+        #chat-panel { position: fixed; top: 0; right: -360px; width: 350px; height: 100vh; background: var(--surface); z-index: 55; display: flex; flex-direction: column; transition: right 0.3s; box-shadow: -4px 0 12px rgba(0,0,0,0.3); }
+        #chat-panel.open { right: 0; }
+        #chat-panel-header { padding: 12px 16px; border-bottom: 1px solid var(--overlay); display: flex; align-items: center; justify-content: space-between; }
+        #chat-panel-header h3 { font-size: 14px; }
+        #chat-panel-body { flex: 1; overflow-y: auto; padding: 12px; font-size: 13px; }
+        #chat-panel-input { padding: 12px; border-top: 1px solid var(--overlay); display: flex; gap: 8px; }
+        #chat-panel-input input { flex: 1; padding: 8px; background: var(--bg); border: 1px solid var(--overlay); border-radius: 4px; color: var(--text); font-size: 13px; }
+        .chat-msg { margin: 8px 0; padding: 8px 10px; border-radius: 6px; max-width: 90%; word-wrap: break-word; }
+        .chat-msg.user { background: var(--overlay); margin-left: auto; }
+        .chat-msg.ai { background: var(--bg); }
+        .sub-tabs { display: flex; gap: 4px; padding: 0 0 12px; border-bottom: 1px solid var(--overlay); margin-bottom: 12px; flex-wrap: wrap; }
+        .sub-tab { padding: 6px 14px; background: none; border: none; color: var(--subtext); border-radius: 4px; cursor: pointer; font-size: 13px; }
+        .sub-tab:hover { background: var(--overlay); color: var(--text); }
+        .sub-tab.active { background: var(--overlay); color: var(--green); }
+        .sub-content { display: none; flex: 1; flex-direction: column; overflow: auto; }
+        .sub-content.active { display: flex; }
+        @media (max-width: 768px) {
+            #sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-100%); }
+            #sidebar.open { transform: translateX(0); }
+            #menu-toggle { display: block; }
+            #main { width: 100%; }
+            .cards { grid-template-columns: 1fr 1fr; }
+            .modal-content { min-width: auto; width: 95vw; }
+        }
+    </style>
+</head>
+<body>
+    <button id="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+    <div id="sidebar">
+        <h1>🖥️ RPi Panel <button class="btn-small" style="background:var(--red);color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;padding:4px 8px;font-size:11px" onclick="powerMenu()">⏻</button></h1>
+        <button class="nav-btn active" data-page="monitor-page">📊 Monitor</button>
+        <button class="nav-btn" data-page="terminal-page">💻 Terminal</button>
+        <button class="nav-btn" data-page="system-page">⚙️ System</button>
+        <button class="nav-btn" data-page="files-page">📁 Files</button>
+        <button class="nav-btn" data-page="network-page">🌐 Network</button>
+        <button class="nav-btn" data-page="hardware-page">🔌 Hardware</button>
+        <button class="nav-btn" data-page="sensors-page">🌡️ Sensors</button>
+        <button class="nav-btn" data-page="dev-page">🐍 Dev</button>
+        <button class="nav-btn" data-page="security-page">🔑 Security</button>
+        <a href="/logout" class="nav-btn logout">🚪 Logout</a>
+    </div>
+
+    <div id="main">
+        <!-- Alerts banner -->
+        <div id="alerts-bar" style="padding:8px 16px 0"></div>
+
+        <!-- MONITOR -->
+        <div class="page active" id="monitor-page">
+            <div class="sub-tabs">
+                <button class="sub-tab active" data-sub="dashboard">Dashboard</button>
+                <button class="sub-tab" data-sub="history-page">History</button>
+                <button class="sub-tab" data-sub="bandwidth-page">Bandwidth</button>
+            </div>
+            <div class="sub-content active" id="dashboard">
+                <div class="cards" id="sys-cards"></div>
+                <div class="card" style="flex:1;overflow:auto"><label>Top Processes</label><table><thead><tr><th>PID</th><th>CPU%</th><th>MEM%</th><th>Command</th></tr></thead><tbody id="proc-body"></tbody></table></div>
+            </div>
+            <div class="sub-content" id="history-page">
+                <div style="margin-bottom:12px;display:flex;gap:8px"><button class="btn btn-small btn-blue" onclick="loadHistory(1)">1h</button><button class="btn btn-small btn-blue" onclick="loadHistory(6)">6h</button><button class="btn btn-small btn-blue" onclick="loadHistory(24)">24h</button></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1"><div class="card"><label>CPU Load</label><canvas id="chart-cpu"></canvas></div><div class="card"><label>Temperature</label><canvas id="chart-temp"></canvas></div><div class="card"><label>Memory %</label><canvas id="chart-mem"></canvas></div><div class="card"><label>Disk %</label><canvas id="chart-disk"></canvas></div></div>
+            </div>
+            <div class="sub-content" id="bandwidth-page">
+                <div class="cards" id="bw-cards"></div>
+                <p style="color:var(--subtext);font-size:12px;margin-top:8px">Auto-refreshes every 2s</p>
+            </div>
+        </div>
+
+        <!-- TERMINAL -->
+        <div class="page" id="terminal-page">
+            <div class="term-tabs" id="term-tabs"><button class="term-add" id="term-add">+</button></div>
+            <div class="term-container" id="term-container"></div>
+        </div>
+
+        <!-- SYSTEM -->
+        <div class="page" id="system-page">
+            <div class="sub-tabs">
+                <button class="sub-tab active" data-sub="services">Services</button>
+                <button class="sub-tab" data-sub="packages">Packages</button>
+                <button class="sub-tab" data-sub="cron">Cron</button>
+                <button class="sub-tab" data-sub="timezone-page">Timezone</button>
+                <button class="sub-tab" data-sub="users-page">Users</button>
+                <button class="sub-tab" data-sub="telegram-page">Telegram</button>
+            </div>
+            <div class="sub-content active" id="services">
+                <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap"><input id="svc-filter" placeholder="Filter..." style="padding:8px;background:var(--surface);border:1px solid var(--overlay);border-radius:4px;color:var(--text);width:250px"><button class="btn btn-green" onclick="createServiceWizard()">+ Create</button></div>
+                <div style="overflow:auto;flex:1"><table><thead><tr><th>Service</th><th>Status</th><th>Actions</th></tr></thead><tbody id="svc-body"></tbody></table></div>
+            </div>
+            <div class="sub-content" id="packages">
+                <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn btn-green" onclick="checkUpdates()">Check</button><button class="btn btn-blue" onclick="upgradeAll()">Upgrade All</button><input id="pkg-install" placeholder="Package..." style="padding:8px;background:var(--surface);border:1px solid var(--overlay);border-radius:4px;color:var(--text)"><button class="btn btn-green btn-small" onclick="installPkg()">Install</button></div>
+                <div id="pkg-list" style="flex:1;overflow:auto"></div>
+            </div>
+            <div class="sub-content" id="cron">
+                <div style="margin-bottom:12px"><button class="btn btn-green" onclick="addCronPrompt()">+ Add Cron Job</button></div>
+                <table><thead><tr><th>Schedule</th><th>Command</th><th>Actions</th></tr></thead><tbody id="cron-body"></tbody></table>
+            </div>
+            <div class="sub-content" id="timezone-page">
+                <div class="cards" id="tz-cards"></div>
+                <div class="card" style="margin-top:12px"><label>Change Timezone</label><div style="margin-top:8px;display:flex;gap:8px"><input id="tz-input" placeholder="Europe/Rome" style="flex:1;padding:8px;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)"><button class="btn btn-green" onclick="setTZ()">Set</button></div></div>
+            </div>
+            <div class="sub-content" id="users-page">
+                <div style="margin-bottom:12px"><button class="btn btn-green" onclick="createUserModal()">+ Create User</button></div>
+                <div id="users-list"></div>
+            </div>
+            <div class="sub-content" id="telegram-page">
+                <div class="card" style="margin-bottom:12px">
+                    <label>Telegram Bot Configuration</label>
+                    <div style="margin-top:8px;display:grid;gap:8px">
+                        <input id="tg-token" placeholder="Bot Token (from @BotFather)" style="padding:8px;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)">
+                        <input id="tg-chatid" placeholder="Chat ID (from @userinfobot)" style="padding:8px;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)">
+                        <div style="display:flex;gap:8px;align-items:center"><label style="font-size:12px"><input type="checkbox" id="tg-enabled"> Enabled</label><button class="btn btn-green btn-small" onclick="saveTelegram()">Save</button><button class="btn btn-blue btn-small" onclick="testTelegram()">Test</button></div>
+                    </div>
+                </div>
+                <div class="card"><label>Alert Types</label><div id="tg-alerts" style="margin-top:8px;font-size:13px"></div></div>
+            </div>
+        </div>
+
+        <!-- FILES -->
+        <div class="page" id="files-page">
+            <div class="sub-tabs">
+                <button class="sub-tab active" data-sub="files">File Manager</button>
+                <button class="sub-tab" data-sub="scripts-page">Scripts</button>
+                <button class="sub-tab" data-sub="notes-page">Notes</button>
+            </div>
+            <div class="sub-content active" id="files">
+                <div class="breadcrumb" id="file-breadcrumb"></div>
+                <div style="margin-bottom:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-green btn-small" onclick="createFilePrompt(false)">+ File</button><button class="btn btn-blue btn-small" onclick="createFilePrompt(true)">+ Folder</button><button class="btn btn-green btn-small" onclick="uploadFile()">⬆ Upload</button></div>
+                <div id="file-list" style="flex:1;overflow:auto"></div>
+            </div>
+            <div class="sub-content" id="scripts-page">
+                <div style="margin-bottom:12px"><button class="btn btn-green" onclick="newScriptModal()">+ New Script</button></div>
+                <div id="scripts-list"></div>
+            </div>
+            <div class="sub-content" id="notes-page">
+                <div style="margin-bottom:12px"><button class="btn btn-green" onclick="newNoteModal()">+ New Note</button></div>
+                <div id="notes-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px"></div>
+            </div>
+        </div>
+
+        <!-- NETWORK -->
+        <div class="page" id="network-page">
+            <div class="sub-tabs">
+                <button class="sub-tab active" data-sub="network">Connections</button>
+                <button class="sub-tab" data-sub="firewall-page">Firewall</button>
+                <button class="sub-tab" data-sub="nginx-page">Nginx</button>
+                <button class="sub-tab" data-sub="tailscale-page">Tailscale</button>
+                <button class="sub-tab" data-sub="wol-page">Wake-on-LAN</button>
+            </div>
+            <div class="sub-content active" id="network">
+                <div class="cards" id="net-cards"></div>
+                <div class="card" style="flex:1;overflow:auto"><label>Active Connections</label><table><thead><tr><th>Proto</th><th>State</th><th>Local</th><th>Peer</th></tr></thead><tbody id="conn-body"></tbody></table></div>
+            </div>
+            <div class="sub-content" id="firewall-page">
+                <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center"><span id="fw-status"></span><button class="btn btn-green btn-small" onclick="fwEnable()">Enable</button><button class="btn btn-red btn-small" onclick="fwDisable()">Disable</button><button class="btn btn-blue btn-small" onclick="fwAddModal()">+ Rule</button></div>
+                <div id="fw-rules" class="card" style="font-family:monospace;font-size:12px;white-space:pre-wrap"></div>
+            </div>
+            <div class="sub-content" id="nginx-page">
+                <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center"><span id="nginx-status"></span><button class="btn btn-green btn-small" onclick="createProxyModal()">+ New Proxy</button></div>
+                <div id="nginx-sites"></div>
+            </div>
+            <div class="sub-content" id="tailscale-page">
+                <div class="cards" id="ts-cards"></div>
+                <div class="card" style="margin-top:12px"><label>Setup</label><div id="ts-instructions" style="margin-top:8px;font-size:13px"></div></div>
+            </div>
+            <div class="sub-content" id="wol-page">
+                <div style="margin-bottom:12px;display:flex;gap:8px"><button class="btn btn-green" onclick="wolAddModal()">+ Add Device</button><button class="btn btn-blue" onclick="wolScan()">Scan Network</button></div>
+                <div id="wol-devices"></div>
+                <div id="wol-scan" style="margin-top:12px"></div>
+            </div>
+        </div>
+
+        <!-- HARDWARE -->
+        <div class="page" id="hardware-page">
+            <div class="sub-tabs">
+                <button class="sub-tab active" data-sub="gpio">GPIO</button>
+                <button class="sub-tab" data-sub="disk-page">Disk</button>
+                <button class="sub-tab" data-sub="camera-page">Camera</button>
+            </div>
+            <div class="sub-content active" id="gpio">
+                <div style="display:grid;grid-template-columns:1fr 280px;gap:16px;height:100%"><div class="card" style="overflow:auto"><label>40-Pin Header</label><div id="gpio-header" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px;max-width:600px;margin-left:auto;margin-right:auto"></div></div><div style="display:flex;flex-direction:column;gap:12px"><div class="card"><label>Legend</label><div style="margin-top:8px;font-size:12px;display:grid;gap:4px"><p><span style="color:#f38ba8">●</span> 5V</p><p><span style="color:#fab387">●</span> 3.3V</p><p><span style="color:#585b70">●</span> GND</p><p><span style="color:#a6e3a1">●</span> GPIO</p><p><span style="color:#89b4fa">●</span> Active</p></div></div><div class="card" style="flex:1"><label>Active Pins</label><div id="gpio-active" style="margin-top:8px;font-size:13px"></div></div></div></div>
+            </div>
+            <div class="sub-content" id="disk-page">
+                <div id="disk-mounts"></div>
+            </div>
+            <div class="sub-content" id="camera-page">
+                <div style="margin-bottom:12px;display:flex;gap:8px"><button class="btn btn-green" onclick="takeSnapshot()">📷 Snapshot</button><span id="cam-status" style="color:var(--subtext);font-size:12px;align-self:center"></span></div>
+                <div id="cam-view" class="card" style="flex:1;display:flex;align-items:center;justify-content:center"><p style="color:var(--subtext)">Click to capture</p></div>
+            </div>
+        </div>
+
+        <!-- DEV -->
+        <div class="page" id="dev-page">
+            <div class="sub-tabs">
+                <button class="sub-tab active" data-sub="venv-page">Venvs</button>
+                <button class="sub-tab" data-sub="ollama-page">Ollama Chat</button>
+            </div>
+            <div class="sub-content active" id="venv-page">
+                <div style="margin-bottom:12px"><button class="btn btn-green" onclick="createVenvModal()">+ Create Venv</button></div>
+                <div id="venv-list"></div>
+            </div>
+            <div class="sub-content" id="ollama-page">
+                <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center"><span id="ollama-status"></span><button class="btn btn-green btn-small" onclick="ollamaInstall()">Install</button><button class="btn btn-blue btn-small" onclick="ollamaPull()">Pull Model</button></div>
+                <div class="card" style="flex:1;display:flex;flex-direction:column"><div id="ollama-chat" style="flex:1;overflow:auto;margin-bottom:8px;padding:8px;font-size:13px"></div><div style="display:flex;gap:8px"><input id="ollama-input" placeholder="Ask something..." style="flex:1;padding:8px;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)" onkeydown="if(event.key==='Enter')ollamaSend()"><button class="btn btn-green" onclick="ollamaSend()">Send</button></div></div>
+            </div>
+        </div>
+
+        <!-- SENSORS -->
+        <div class="page" id="sensors-page">
+            <div class="sub-tabs">
+                <button class="sub-tab active" data-sub="sensors-live">Real-time Board</button>
+                <button class="sub-tab" data-sub="sensors-simulator">Simulator</button>
+                <button class="sub-tab" data-sub="sensors-catalog">Wiring Guide</button>
+                <button class="sub-tab" data-sub="sensors-manage">Manage</button>
+            </div>
+            <div class="sub-content active" id="sensors-live">
+                <div style="display:flex;height:100%;gap:12px">
+                    <!-- Component palette -->
+                    <div style="width:180px;overflow-y:auto;background:var(--surface);border-radius:8px;padding:10px">
+                        <label style="font-size:12px">COMPONENTS</label>
+                        <div id="sensor-palette" style="margin-top:8px;display:flex;flex-direction:column;gap:8px"></div>
+                    </div>
+                    <!-- Visual board -->
+                    <div style="flex:1;position:relative;background:var(--surface);border-radius:8px;overflow:hidden" id="visual-board">
+                        <svg id="board-svg" width="100%" height="100%" style="position:absolute;inset:0;pointer-events:none;z-index:2"></svg>
+                        <!-- RPi header in center -->
+                        <div id="rpi-visual" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1a5e1a;border-radius:12px;padding:20px 24px;border:3px solid #0d3d0d">
+                            <div style="text-align:center;color:#a6e3a1;font-size:13px;font-weight:bold;margin-bottom:10px">Raspberry Pi 4</div>
+                            <div id="rpi-pins-visual" style="display:grid;grid-template-columns:auto auto;gap:6px"></div>
+                        </div>
+                        <!-- Placed sensors -->
+                        <div id="placed-sensors"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="sub-content" id="sensors-simulator">
+                <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                    <label style="font-size:12px;color:var(--subtext)">Project:</label>
+                    <select id="wokwi-project" style="padding:6px;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text);font-size:12px" onchange="loadWokwi()">
+                        <option value="https://wokwi.com/projects/new/arduino-uno">Arduino Uno (blank)</option>
+                        <option value="https://wokwi.com/projects/new/esp32">ESP32 (blank)</option>
+                        <option value="https://wokwi.com/projects/new/raspberry-pi-pico">RPi Pico (blank)</option>
+                        <option value="https://wokwi.com/projects/344891652101374548">Arduino + DHT22</option>
+                        <option value="https://wokwi.com/projects/305568836183130690">ESP32 + OLED + DHT</option>
+                        <option value="https://wokwi.com/projects/340959007153848914">Arduino + Ultrasonic</option>
+                        <option value="https://wokwi.com/projects/346601659498963538">ESP32 + BME280 I2C</option>
+                        <option value="https://wokwi.com/projects/339670467067511380">Arduino + Relay</option>
+                    </select>
+                    <input id="wokwi-custom" placeholder="Or paste Wokwi project URL..." style="flex:1;padding:6px;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text);font-size:12px;min-width:200px">
+                    <button class="btn btn-blue btn-small" onclick="loadWokwiCustom()">Load</button>
+                    <a href="https://wokwi.com/projects" target="_blank" class="btn btn-small" style="background:var(--overlay);color:var(--text);text-decoration:none">Browse Wokwi ↗</a>
+                </div>
+                <iframe id="wokwi-frame" src="https://wokwi.com/projects/new/arduino-uno" style="flex:1;width:100%;border:none;border-radius:8px;min-height:500px;background:#1a1a2e"></iframe>
+            </div>
+            <div class="sub-content" id="sensors-catalog">
+                <p style="margin-bottom:12px;color:var(--subtext)">Wiring diagrams for supported sensors. Click to see details.</p>
+                <div id="sensors-catalog-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px"></div>
+            </div>
+            <div class="sub-content" id="sensors-manage">
+                <div style="margin-bottom:12px"><button class="btn btn-green" onclick="addSensorModal()">+ Register Sensor</button></div>
+                <div id="sensors-registered"></div>
+            </div>
+        </div>
+
+        <!-- SECURITY -->
+        <div class="page" id="security-page">
+            <div class="sub-tabs">
+                <button class="sub-tab active" data-sub="sshkeys-page">SSH Keys</button>
+                <button class="sub-tab" data-sub="authlogs-page">Auth Logs</button>
+                <button class="sub-tab" data-sub="clipboard-page">Clipboard</button>
+                <button class="sub-tab" data-sub="backup-page">Backups</button>
+            </div>
+            <div class="sub-content active" id="sshkeys-page">
+                <div style="margin-bottom:12px"><button class="btn btn-green" onclick="addKeyModal()">+ Add Key</button></div>
+                <div id="keys-list"></div>
+                <div class="card" style="margin-top:12px"><label>Host Public Key</label><pre id="host-key" style="font-size:11px;margin-top:8px;word-break:break-all;color:var(--subtext)"></pre></div>
+            </div>
+            <div class="sub-content" id="authlogs-page">
+                <div class="cards" id="auth-cards"></div>
+                <div class="card" style="flex:1;overflow:auto"><label>SSH Logs</label><pre id="auth-log" style="font-size:11px;margin-top:8px;white-space:pre-wrap;max-height:60vh;overflow:auto"></pre></div>
+            </div>
+            <div class="sub-content" id="clipboard-page">
+                <div class="card" style="flex:1;display:flex;flex-direction:column"><label>Shared Clipboard (PC ↔ Pi)</label><textarea id="clip-content" style="flex:1;margin-top:12px;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text);padding:12px;font-family:monospace;resize:none" placeholder="Paste text here..."></textarea><div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-green" onclick="saveClipboard()">Save</button><button class="btn btn-blue" onclick="loadClipboard()">Refresh</button><button class="btn btn-small" style="background:var(--overlay);color:var(--text)" onclick="copyClip()">Copy</button></div></div>
+            </div>
+            <div class="sub-content" id="backup-page">
+                <div style="margin-bottom:12px"><button class="btn btn-green" onclick="createBackup()">+ Create Backup</button></div>
+                <div id="backup-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat toggle + panel -->
+    <button id="chat-toggle" onclick="document.getElementById('chat-panel').classList.toggle('open')">🤖</button>
+    <div id="chat-panel">
+        <div id="chat-panel-header"><h3>🤖 Ollama</h3><button onclick="document.getElementById('chat-panel').classList.remove('open')" style="background:none;border:none;color:var(--subtext);cursor:pointer;font-size:16px">✕</button></div>
+        <div id="chat-panel-body"></div>
+        <div id="chat-panel-input"><input id="chat-input" placeholder="Ask something..." onkeydown="if(event.key==='Enter')sendChat()"><button class="btn btn-green btn-small" onclick="sendChat()">→</button></div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal" id="modal"><div class="modal-content" id="modal-content"></div></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+    <script>
+    // === NAV ===
+    document.querySelectorAll('.nav-btn[data-page]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(btn.dataset.page).classList.add('active');
+            if (btn.dataset.page === 'terminal-page') fitActiveTerminal();
+            document.getElementById('sidebar').classList.remove('open');
+        });
+    });
+    // Sub-tabs
+    document.querySelectorAll('.sub-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const parent = tab.closest('.page');
+            parent.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+            parent.querySelectorAll('.sub-content').forEach(c => c.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById(tab.dataset.sub).classList.add('active');
+        });
+    });
+
+    // === POWER ===
+    function powerMenu() { showModal(`<h3>⏻ Power</h3><p style="margin:12px 0;color:var(--subtext)">Are you sure?</p><div style="display:flex;gap:8px"><button class="btn btn-yellow" style="background:var(--yellow);color:#1e1e2e" onclick="doPower('reboot')">🔄 Reboot</button><button class="btn btn-red" onclick="doPower('shutdown')">⏻ Shutdown</button><button class="btn" style="background:var(--overlay);color:var(--text)" onclick="closeModal()">Cancel</button></div>`); }
+    async function doPower(action) { await fetch(`/api/power/${action}`,{method:'POST'}); closeModal(); showModal(`<h3>${action==='reboot'?'Rebooting...':'Shutting down...'}</h3><p style="color:var(--subtext)">The Pi will be ${action==='reboot'?'back in ~30s':'offline'}.</p>`); }
+
+    // === ALERTS ===
+    async function checkAlerts() {
+        try { const r=await fetch('/api/alerts/check'); const d=await r.json();
+        document.getElementById('alerts-bar').innerHTML = d.alerts.map(a=>`<div class="alert-banner alert-${a.severity}">⚠️ ${a.message}</div>`).join('');
+        } catch(e){}
+    }
+    checkAlerts(); setInterval(checkAlerts, 30000);
+
+    // === DASHBOARD ===
+    async function loadDashboard() {
+        const r=await fetch('/api/system/stats'); const d=await r.json();
+        document.getElementById('sys-cards').innerHTML = `
+            <div class="card"><label>CPU Load</label><div class="value">${d.load[0]}</div></div>
+            <div class="card"><label>Memory</label><div class="value">${d.mem_used_mb}/${d.mem_total_mb}MB</div><div style="color:var(--subtext)">${d.mem_percent}%</div></div>
+            <div class="card"><label>Temp</label><div class="value" style="color:${d.temp_c>70?'var(--red)':d.temp_c>55?'var(--yellow)':'var(--green)'}">${d.temp_c}°C</div></div>
+            <div class="card"><label>Disk</label><div class="value">${d.disk_used_gb}/${d.disk_total_gb}GB</div><div style="color:var(--subtext)">${d.disk_percent}%</div></div>
+            <div class="card"><label>Uptime</label><div class="value">${fmtUp(d.uptime_sec)}</div></div>`;
+        document.getElementById('proc-body').innerHTML = d.processes.map(p=>`<tr><td>${p.pid}</td><td>${p.cpu}</td><td>${p.mem}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.cmd}</td></tr>`).join('');
+    }
+    function fmtUp(s){const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?`${d}d ${h}h`:`${h}h ${m}m`;}
+    loadDashboard(); setInterval(loadDashboard,5000);
+
+    // === HISTORY CHARTS ===
+    let charts = {};
+    async function loadHistory(hours=6) {
+        const r=await fetch(`/api/history/?hours=${hours}`); const d=await r.json();
+        const labels = d.timestamps.map(t=>new Date(t*1000).toLocaleTimeString());
+        const opts = {responsive:true,plugins:{legend:{display:false}},scales:{x:{display:false},y:{beginAtZero:false}},elements:{point:{radius:0},line:{borderWidth:2}}};
+        ['cpu','temp','mem','disk'].forEach((k,i)=>{
+            const id='chart-'+k; const data=d[['cpu_load','temp','mem_percent','disk_percent'][i]];
+            const colors=['#89b4fa','#f38ba8','#a6e3a1','#f9e2af'];
+            if(charts[id]){charts[id].data.labels=labels;charts[id].data.datasets[0].data=data;charts[id].update();}
+            else{charts[id]=new Chart(document.getElementById(id),{type:'line',data:{labels,datasets:[{data,borderColor:colors[i],fill:false,tension:0.3}]},options:opts});}
+        });
+    }
+    loadHistory();
+    </script>
+    <script>
+    // === TERMINAL ===
+    const terminals=[]; let activeTermIdx=-1;
+    function createTerminal(){
+        const idx=terminals.length;
+        const tab=document.createElement('button');tab.className='term-tab';tab.innerHTML=`Shell ${idx+1} <span class="term-close" onclick="event.stopPropagation();closeTerminal(${idx})">✕</span>`;tab.onclick=()=>switchTerm(idx);
+        document.getElementById('term-tabs').insertBefore(tab,document.getElementById('term-add'));
+        const div=document.createElement('div');div.className='term-instance';document.getElementById('term-container').appendChild(div);
+        const term=new Terminal({cursorBlink:true,fontSize:14,fontFamily:'Menlo,Monaco,monospace',theme:{background:'#1e1e2e',foreground:'#cdd6f4',cursor:'#f5e0dc'}});
+        const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.open(div);
+        const proto=location.protocol==='https:'?'wss:':'ws:';
+        const ws=new WebSocket(`${proto}//${location.host}/ws/terminal`);
+        ws.onopen=()=>{fit.fit();ws.send(JSON.stringify({type:'resize',cols:term.cols,rows:term.rows}));};
+        ws.onmessage=e=>term.write(e.data);
+        ws.onclose=()=>term.write('\r\n\x1b[31m[Disconnected]\x1b[0m');
+        term.onData(data=>{if(ws.readyState===1)ws.send(JSON.stringify({type:'input',data}));});
+        terminals.push({term,fit,ws,tab,div,closed:false});switchTerm(idx);
+    }
+    function closeTerminal(idx){
+        const t=terminals[idx];if(!t||t.closed)return;
+        t.closed=true;t.ws.close();t.tab.remove();t.div.remove();
+        const next=terminals.findIndex((x,i)=>i!==idx&&!x.closed);
+        if(next>=0)switchTerm(next);
+    }
+    function switchTerm(idx){terminals.forEach((t,i)=>{if(!t.closed){t.tab.classList.toggle('active',i===idx);t.div.classList.toggle('active',i===idx);}});activeTermIdx=idx;setTimeout(()=>terminals[idx]?.fit.fit(),10);}
+    function fitActiveTerminal(){if(activeTermIdx>=0&&!terminals[activeTermIdx]?.closed)setTimeout(()=>terminals[activeTermIdx]?.fit.fit(),50);}
+    document.getElementById('term-add').onclick=createTerminal;
+    window.addEventListener('resize',fitActiveTerminal);
+    createTerminal();
+
+    // === SERVICES ===
+    let allServices=[];
+    async function loadServices(){const r=await fetch('/api/services/');allServices=await r.json();renderServices();}
+    function renderServices(){const f=document.getElementById('svc-filter').value.toLowerCase();document.getElementById('svc-body').innerHTML=allServices.filter(s=>s.name.toLowerCase().includes(f)).slice(0,80).map(s=>`<tr><td>${s.name}</td><td class="${s.active==='active'?'status-active':'status-inactive'}">${s.active}(${s.sub})</td><td><button class="btn btn-green btn-small" onclick="svcAction('start','${s.name}')">Start</button> <button class="btn btn-red btn-small" onclick="svcAction('stop','${s.name}')">Stop</button> <button class="btn btn-blue btn-small" onclick="svcAction('restart','${s.name}')">Restart</button> <button class="btn btn-small" style="background:var(--mauve);color:#1e1e2e" onclick="svcLogs('${s.name}')">Logs</button></td></tr>`).join('');}
+    document.getElementById('svc-filter').addEventListener('input',renderServices);
+    async function svcAction(a,n){await fetch(`/api/services/${a}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})});loadServices();}
+    async function svcLogs(n){const r=await fetch(`/api/services/logs/${n}`);const d=await r.json();showModal(`<h3>${n}</h3><pre style="font-size:11px;overflow:auto;max-height:60vh;white-space:pre-wrap">${d.logs||'No logs'}</pre><button class="btn btn-red" onclick="closeModal()">Close</button>`);}
+    function createServiceWizard(){showModal(`<h3>Create systemd Service</h3>
+<div style="font-size:12px;color:var(--subtext);margin-bottom:12px">Fill in the fields to generate a .service unit file</div>
+<label style="font-size:11px;color:var(--subtext)">Service name</label>
+<input id="cs-name" placeholder="my-app">
+<label style="font-size:11px;color:var(--subtext)">Description</label>
+<input id="cs-desc" placeholder="My awesome app">
+<label style="font-size:11px;color:var(--subtext)">Command (ExecStart) *</label>
+<input id="cs-exec" placeholder="/home/egamgia/app/.venv/bin/python -m main">
+<label style="font-size:11px;color:var(--subtext)">Working directory</label>
+<input id="cs-workdir" placeholder="/home/egamgia/app">
+<label style="font-size:11px;color:var(--subtext)">User</label>
+<input id="cs-user" value="egamgia">
+<label style="font-size:11px;color:var(--subtext)">Start after</label>
+<input id="cs-after" value="network.target">
+<label style="font-size:11px;color:var(--subtext)">Restart policy</label>
+<select id="cs-restart" style="width:100%;padding:8px;margin:6px 0;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)"><option value="always">always</option><option value="on-failure">on-failure</option><option value="no">no</option></select>
+<label style="font-size:11px;color:var(--subtext)">Environment variables (one per line: KEY=value)</label>
+<textarea id="cs-env" style="min-height:60px" placeholder="PORT=8000\nNODE_ENV=production"></textarea>
+<div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-green" onclick="submitService()">Create & Enable</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
+    async function submitService(){
+        const env=document.getElementById('cs-env').value.split('\\n').filter(l=>l.trim());
+        const body={name:document.getElementById('cs-name').value,description:document.getElementById('cs-desc').value,exec_start:document.getElementById('cs-exec').value,working_dir:document.getElementById('cs-workdir').value,user:document.getElementById('cs-user').value,after:document.getElementById('cs-after').value,restart:document.getElementById('cs-restart').value,env};
+        if(!body.name||!body.exec_start){alert('Name and Command are required');return;}
+        const r=await fetch('/api/services/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();
+        if(d.ok){closeModal();if(confirm(`Service ${d.name} created! Enable and start it now?`)){await svcAction('start',d.name);}loadServices();}else{alert('Error: '+d.error);}
+    }
+    loadServices();
+
+    // === FILES ===
+    let currentPath='/home/egamgia';
+    async function loadFiles(path){
+        currentPath=path||currentPath;const r=await fetch(`/api/files/browse?path=${encodeURIComponent(currentPath)}`);const d=await r.json();if(d.error)return;currentPath=d.path;
+        const parts=currentPath.split('/').filter(Boolean);
+        document.getElementById('file-breadcrumb').innerHTML=`<span onclick="loadFiles('/')">/</span>`+parts.map((p,i)=>`<span onclick="loadFiles('/${parts.slice(0,i+1).join('/')}')">${p}/</span>`).join('');
+        document.getElementById('file-list').innerHTML=(currentPath!=='/'?`<div class="file-item" ondblclick="loadFiles('${d.parent}')">📁 ..</div>`:'')+d.items.map(f=>`<div class="file-item" ondblclick="${f.is_dir?`loadFiles('${f.path}')`:`editFile('${f.path}')`}"><span>${f.is_dir?'📁':'📄'}</span><span style="flex:1">${f.name}</span><span style="color:var(--subtext);font-size:11px">${f.is_dir?'':fmtSz(f.size)}</span>${!f.is_dir?`<button class="btn btn-small" style="background:var(--overlay);color:var(--text)" onclick="event.stopPropagation();downloadFile('${f.path}')">⬇</button>`:''}<button class="btn btn-red btn-small" onclick="event.stopPropagation();deleteFile('${f.path}')">✕</button></div>`).join('');
+    }
+    function fmtSz(b){if(b<1024)return b+'B';if(b<1048576)return(b/1024).toFixed(1)+'K';return(b/1048576).toFixed(1)+'M';}
+    async function editFile(p){const r=await fetch(`/api/files/read?path=${encodeURIComponent(p)}`);const d=await r.json();showModal(`<h3>${p.split('/').pop()}</h3><textarea id="edit-content">${escH(d.content||'')}</textarea><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="saveFile('${p}')">Save</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
+    async function saveFile(p){await fetch('/api/files/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:p,content:document.getElementById('edit-content').value})});closeModal();}
+    async function deleteFile(p){if(confirm('Delete?')){await fetch('/api/files/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:p})});loadFiles();}}
+    function downloadFile(p){window.open(`/api/files/download?path=${encodeURIComponent(p)}`);}
+    function createFilePrompt(d){const n=prompt(d?'Folder name:':'File name:');if(n)fetch('/api/files/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:currentPath+'/'+n,is_dir:d})}).then(()=>loadFiles());}
+    function uploadFile(){const i=document.createElement('input');i.type='file';i.onchange=async()=>{const fd=new FormData();fd.append('file',i.files[0]);await fetch(`/api/files/upload?path=${encodeURIComponent(currentPath)}`,{method:'POST',body:fd});loadFiles();};i.click();}
+    function escH(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+    loadFiles();
+    </script>
+    <script>
+    // === SCRIPTS ===
+    async function loadScripts(){const r=await fetch('/api/scripts/');const d=await r.json();document.getElementById('scripts-list').innerHTML=d.length?d.map(s=>`<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px"><div style="flex:1"><b>${s.name}</b><br><span style="color:var(--subtext);font-size:12px">${s.description}</span></div><button class="btn btn-green btn-small" onclick="runScript('${s.id}')">▶ Run</button><button class="btn btn-blue btn-small" onclick="editScript('${s.id}')">Edit</button><button class="btn btn-red btn-small" onclick="delScript('${s.id}')">✕</button></div>`).join(''):'<p style="color:var(--subtext)">No scripts yet</p>';}
+    function newScriptModal(){showModal(`<h3>New Script</h3><input id="s-name" placeholder="Name"><input id="s-desc" placeholder="Description"><textarea id="s-content" placeholder="#!/bin/bash\n..."></textarea><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="saveScript()">Save</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
+    async function saveScript(){await fetch('/api/scripts/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('s-name').value,description:document.getElementById('s-desc').value,content:document.getElementById('s-content').value})});closeModal();loadScripts();}
+    async function runScript(id){const r=await fetch(`/api/scripts/run/${id}`,{method:'POST'});const d=await r.json();showModal(`<h3>Output</h3><pre style="font-size:11px;max-height:60vh;overflow:auto;white-space:pre-wrap">${escH(d.stdout||'')}${d.stderr?'\n\x1b[31m'+escH(d.stderr):''}${d.error||''}</pre><button class="btn btn-red" onclick="closeModal()">Close</button>`);}
+    async function editScript(id){const r=await fetch(`/api/scripts/get/${id}`);const d=await r.json();showModal(`<h3>Edit: ${d.name}</h3><input id="s-name" value="${d.name}"><input id="s-desc" value="${d.description||''}"><textarea id="s-content">${escH(d.content)}</textarea><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="saveScript()">Save</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
+    async function delScript(id){if(confirm('Delete?')){await fetch(`/api/scripts/delete/${id}`,{method:'POST'});loadScripts();}}
+    loadScripts();
+
+    // === NETWORK ===
+    async function loadNetwork(){const[_,wifi,conns]=await Promise.all([fetch('/api/network/interfaces').then(r=>r.json()),fetch('/api/network/wifi').then(r=>r.json()),fetch('/api/network/connections').then(r=>r.json())]);
+    document.getElementById('net-cards').innerHTML=`<div class="card"><label>WiFi</label><div class="value" style="font-size:16px">${wifi.ssid||'N/A'}</div></div><div class="card"><label>Signal</label><div class="value" style="font-size:16px">${wifi.signal||'N/A'}</div></div><div class="card"><label>Speed</label><div class="value" style="font-size:16px">${wifi.bitrate||'N/A'}</div></div><div class="card"><label>Freq</label><div class="value" style="font-size:16px">${wifi.frequency||'N/A'} MHz</div></div>`;
+    document.getElementById('conn-body').innerHTML=conns.slice(0,50).map(c=>`<tr><td>${c.proto}</td><td>${c.state}</td><td>${c.local}</td><td>${c.peer}</td></tr>`).join('');}
+    loadNetwork();
+
+    // === PACKAGES ===
+    async function checkUpdates(){document.getElementById('pkg-list').innerHTML='<p>Checking...</p>';const r=await fetch('/api/packages/upgradable');const d=await r.json();document.getElementById('pkg-list').innerHTML=d.count?`<p>${d.count} upgradable:</p>`+d.packages.map(p=>`<div style="padding:4px 0">${p}</div>`).join(''):'<p style="color:var(--green)">All up to date!</p>';}
+    async function upgradeAll(){document.getElementById('pkg-list').innerHTML='<p>Upgrading...</p>';const r=await fetch('/api/packages/update',{method:'POST'});const d=await r.json();document.getElementById('pkg-list').innerHTML=`<pre style="font-size:11px;white-space:pre-wrap">${d.output}</pre>`;}
+    async function installPkg(){const n=document.getElementById('pkg-install').value.trim();if(!n)return;const r=await fetch('/api/packages/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})});const d=await r.json();alert(d.ok?'Installed!':'Error: '+d.output);}
+
+    // === GPIO ===
+    const HEADER=[{p:1,type:'3v3'},{p:2,type:'5v'},{p:3,type:'gpio',bcm:2},{p:4,type:'5v',note:'FAN+'},{p:5,type:'gpio',bcm:3},{p:6,type:'gnd',note:'FAN-'},{p:7,type:'gpio',bcm:4},{p:8,type:'gpio',bcm:14},{p:9,type:'gnd'},{p:10,type:'gpio',bcm:15},{p:11,type:'gpio',bcm:17},{p:12,type:'gpio',bcm:18},{p:13,type:'gpio',bcm:27},{p:14,type:'gnd'},{p:15,type:'gpio',bcm:22},{p:16,type:'gpio',bcm:23},{p:17,type:'3v3'},{p:18,type:'gpio',bcm:24},{p:19,type:'gpio',bcm:10},{p:20,type:'gnd'},{p:21,type:'gpio',bcm:9},{p:22,type:'gpio',bcm:25},{p:23,type:'gpio',bcm:11},{p:24,type:'gpio',bcm:8},{p:25,type:'gnd'},{p:26,type:'gpio',bcm:7},{p:27,type:'gpio',bcm:0},{p:28,type:'gpio',bcm:1},{p:29,type:'gpio',bcm:5},{p:30,type:'gnd'},{p:31,type:'gpio',bcm:6},{p:32,type:'gpio',bcm:12},{p:33,type:'gpio',bcm:13},{p:34,type:'gnd'},{p:35,type:'gpio',bcm:19},{p:36,type:'gpio',bcm:16},{p:37,type:'gpio',bcm:26},{p:38,type:'gpio',bcm:20},{p:39,type:'gnd'},{p:40,type:'gpio',bcm:21}];
+    let gpioStates={};
+    async function loadGPIO(){const r=await fetch('/api/gpio/pins');const d=await r.json();gpioStates={};d.pins.forEach(p=>{gpioStates[p.pin]=p;});renderGPIO();}
+    function renderGPIO(){
+        let html='';for(let i=0;i<HEADER.length;i+=2){html+=renderPin(HEADER[i],'left')+renderPin(HEADER[i+1],'right');}
+        document.getElementById('gpio-header').innerHTML=html;
+        const active=Object.values(gpioStates).filter(s=>s.active);
+        document.getElementById('gpio-active').innerHTML=active.length?active.map(s=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--overlay)"><span>GPIO${s.pin}</span><span>${s.value?'🟢':'⚫'}</span><button class="btn btn-red btn-small" onclick="gpioRelease(${s.pin})">×</button></div>`).join(''):'<p style="color:var(--subtext)">None</p>';
+    }
+    function renderPin(pin,side){let color,label,click=false;if(pin.type==='5v'){color='#f38ba8';label='5V';}else if(pin.type==='3v3'){color='#fab387';label='3.3V';}else if(pin.type==='gnd'){color='#585b70';label='GND';}else{const st=gpioStates[pin.bcm];color=st&&st.active?'#89b4fa':'#a6e3a1';label=`GPIO${pin.bcm}`;click=true;}
+    const note=pin.note?` <span style="color:var(--yellow);font-size:10px">${pin.note}</span>`:'';const vd=(pin.type==='gpio'&&gpioStates[pin.bcm]?.active)?(gpioStates[pin.bcm].value?' 🟢':' ⚫'):'';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;background:var(--surface);${click?'cursor:pointer;':''}${side==='right'?'flex-direction:row-reverse;':''}" ${click?`onclick="gpioModal(${pin.bcm})"`:''}><span style="width:14px;height:14px;border-radius:50%;background:${color};display:inline-block"></span><span style="flex:1;font-size:12px"><b>${pin.p}</b> ${label}${note}${vd}</span></div>`;}
+    function gpioModal(bcm){const st=gpioStates[bcm]||{};showModal(`<h3>GPIO ${bcm}</h3><p style="margin:8px 0;color:var(--subtext)">State: ${st.value===1?'🟢 HIGH':st.value===0?'⚫ LOW':'⚪ Unknown'}</p><div style="display:flex;gap:8px"><button class="btn btn-green" onclick="gpioSet(${bcm},1)">HIGH</button><button class="btn btn-red" onclick="gpioSet(${bcm},0)">LOW</button><button class="btn btn-blue" onclick="gpioRead(${bcm})">Read</button>${st.active?`<button class="btn" style="background:var(--overlay);color:var(--text)" onclick="gpioRelease(${bcm})">Release</button>`:''}</div><div id="gpio-result" style="margin-top:12px"></div>`);}
+    async function gpioSet(b,v){const r=await fetch('/api/gpio/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:b,value:v})});const d=await r.json();document.getElementById('gpio-result').innerHTML=d.ok?`<span style="color:var(--green)">✓ Set ${v?'HIGH':'LOW'}</span>`:`<span style="color:var(--red)">${d.error}</span>`;loadGPIO();}
+    async function gpioRead(b){const r=await fetch(`/api/gpio/read/${b}`);const d=await r.json();document.getElementById('gpio-result').innerHTML=d.error?`<span style="color:var(--red)">${d.error}</span>`:`Value: ${d.value?'🟢 HIGH':'⚫ LOW'}`;}
+    async function gpioRelease(b){await fetch('/api/gpio/release',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:b})});closeModal();loadGPIO();}
+    loadGPIO();
+    </script>
+    <script>
+    // === CRON ===
+    async function loadCron(){const r=await fetch('/api/cron/');const d=await r.json();document.getElementById('cron-body').innerHTML=d.jobs.map(j=>`<tr><td><code>${j.minute} ${j.hour} ${j.day} ${j.month} ${j.weekday}</code></td><td>${j.command}</td><td><button class="btn btn-red btn-small" onclick="deleteCron(${j.id})">Delete</button></td></tr>`).join('')||'<tr><td colspan="3" style="color:var(--subtext)">No cron jobs</td></tr>';}
+    function addCronPrompt(){showModal(`<h3>New Cron Job</h3><input id="cron-sched" placeholder="*/5 * * * *"><input id="cron-cmd" placeholder="Command"><div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-green" onclick="addCron()">Add</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
+    async function addCron(){await fetch('/api/cron/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({schedule:document.getElementById('cron-sched').value,command:document.getElementById('cron-cmd').value})});closeModal();loadCron();}
+    async function deleteCron(i){if(confirm('Delete?')){await fetch('/api/cron/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({line_index:i})});loadCron();}}
+    loadCron();
+
+    // === CAMERA ===
+    async function takeSnapshot(){document.getElementById('cam-view').innerHTML='<p>Capturing...</p>';const r=await fetch('/api/camera/snapshot');if(r.ok&&r.headers.get('content-type')?.includes('image')){const blob=await r.blob();document.getElementById('cam-view').innerHTML=`<img src="${URL.createObjectURL(blob)}" style="max-width:100%;max-height:100%;border-radius:4px">`;}else{const d=await r.json();document.getElementById('cam-view').innerHTML=`<p style="color:var(--red)">${d.error||'Failed'}</p>`;}}
+    fetch('/api/camera/status').then(r=>r.json()).then(d=>{document.getElementById('cam-status').textContent=d.available?'Camera detected':'No camera detected';});
+
+    // === CLIPBOARD ===
+    async function loadClipboard(){const r=await fetch('/api/clipboard/');const d=await r.json();document.getElementById('clip-content').value=d.content;}
+    async function saveClipboard(){await fetch('/api/clipboard/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:document.getElementById('clip-content').value})});}
+    function copyClip(){navigator.clipboard.writeText(document.getElementById('clip-content').value);}
+    loadClipboard();
+
+    // === SSH KEYS ===
+    async function loadKeys(){const r=await fetch('/api/sshkeys/');const d=await r.json();document.getElementById('keys-list').innerHTML=d.keys.length?d.keys.map(k=>`<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px"><div style="flex:1"><b>${k.type}</b> <span style="color:var(--subtext)">${k.comment||'no comment'}</span><br><code style="font-size:10px;color:var(--subtext)">${k.fingerprint}</code></div><button class="btn btn-red btn-small" onclick="removeKey(${k.id})">Remove</button></div>`).join(''):'<p style="color:var(--subtext)">No authorized keys</p>';
+    const hr=await fetch('/api/sshkeys/host-key');const hd=await hr.json();document.getElementById('host-key').textContent=hd.key||'N/A';}
+    function addKeyModal(){showModal(`<h3>Add SSH Key</h3><textarea id="new-key" placeholder="ssh-ed25519 AAAA... comment" style="min-height:80px"></textarea><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="addKey()">Add</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
+    async function addKey(){await fetch('/api/sshkeys/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:document.getElementById('new-key').value})});closeModal();loadKeys();}
+    async function removeKey(id){if(confirm('Remove key?')){await fetch('/api/sshkeys/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});loadKeys();}}
+    loadKeys();
+
+    // === BACKUPS ===
+    async function loadBackups(){const r=await fetch('/api/backup/');const d=await r.json();document.getElementById('backup-list').innerHTML=d.length?d.map(b=>`<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px"><div style="flex:1"><b>${b.name}</b><br><span style="color:var(--subtext);font-size:12px">${b.size_mb} MB — ${new Date(b.created*1000).toLocaleString()}</span></div><button class="btn btn-blue btn-small" onclick="restoreBackup('${b.name}')">Restore</button><button class="btn btn-red btn-small" onclick="delBackup('${b.name}')">Delete</button></div>`).join(''):'<p style="color:var(--subtext)">No backups</p>';}
+    async function createBackup(){const r=await fetch('/api/backup/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({paths:['/home/egamgia']})});const d=await r.json();alert(d.ok?`Backup created: ${d.name} (${d.size_mb}MB)`:'Error: '+d.error);loadBackups();}
+    async function restoreBackup(n){if(confirm(`Restore ${n}?`)){await fetch('/api/backup/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})});alert('Restored!');}}
+    async function delBackup(n){if(confirm('Delete?')){await fetch('/api/backup/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})});loadBackups();}}
+    loadBackups();
+
+    // === TAILSCALE ===
+    async function loadTailscale(){
+        const[st,ip,inst]=await Promise.all([fetch('/api/tailscale/status').then(r=>r.json()),fetch('/api/tailscale/ip').then(r=>r.json()),fetch('/api/tailscale/install-instructions').then(r=>r.json())]);
+        document.getElementById('ts-cards').innerHTML=`<div class="card"><label>Status</label><div class="value" style="font-size:16px;color:${st.installed?'var(--green)':'var(--red)'}">${st.installed?'Installed':'Not installed'}</div></div><div class="card"><label>Tailscale IP</label><div class="value" style="font-size:16px">${ip.ip||'N/A'}</div></div><div class="card"><label>Actions</label><div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-green btn-small" onclick="tsUp()">Connect</button><button class="btn btn-red btn-small" onclick="tsDown()">Disconnect</button></div></div>`;
+        document.getElementById('ts-instructions').innerHTML=inst.steps.map((s,i)=>`<p style="margin:4px 0"><b>${i+1}.</b> <code>${s}</code></p>`).join('');
+    }
+    async function tsUp(){const r=await fetch('/api/tailscale/up',{method:'POST'});const d=await r.json();alert(d.ok?'Connected!':d.output);loadTailscale();}
+    async function tsDown(){await fetch('/api/tailscale/down',{method:'POST'});loadTailscale();}
+    loadTailscale();
+
+    // === BANDWIDTH ===
+    let prevBw=null;
+    async function loadBandwidth(){
+        const r=await fetch('/api/bandwidth/');const d=await r.json();
+        let html='';
+        for(const[iface,s]of Object.entries(d)){
+            let rxSpeed='',txSpeed='';
+            if(prevBw&&prevBw[iface]){rxSpeed=fmtBytes((s.rx_bytes-prevBw[iface].rx_bytes)/2)+'/s';txSpeed=fmtBytes((s.tx_bytes-prevBw[iface].tx_bytes)/2)+'/s';}
+            html+=`<div class="card"><label>${iface} ↓</label><div class="value" style="font-size:16px;color:var(--green)">${rxSpeed||'...'}</div><div style="color:var(--subtext);font-size:11px">Total: ${fmtBytes(s.rx_bytes)}</div></div>`;
+            html+=`<div class="card"><label>${iface} ↑</label><div class="value" style="font-size:16px;color:var(--blue)">${txSpeed||'...'}</div><div style="color:var(--subtext);font-size:11px">Total: ${fmtBytes(s.tx_bytes)}</div></div>`;
+        }
+        document.getElementById('bw-cards').innerHTML=html;prevBw=d;
+    }
+    function fmtBytes(b){if(b<1024)return b.toFixed(0)+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB';}
+    setInterval(loadBandwidth,2000);loadBandwidth();
+
+    // === TIMEZONE ===
+    async function loadTZ(){const r=await fetch('/api/timezone/');const d=await r.json();document.getElementById('tz-cards').innerHTML=`<div class="card"><label>Current</label><div class="value" style="font-size:16px">${d.timezone}</div></div><div class="card"><label>NTP Sync</label><div class="value" style="font-size:16px;color:${d.ntp==='yes'?'var(--green)':'var(--red)'}">${d.ntp}</div></div>`;}
+    async function setTZ(){const tz=document.getElementById('tz-input').value;if(!tz)return;const r=await fetch('/api/timezone/set',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({timezone:tz})});const d=await r.json();alert(d.ok?'Done!':'Error: '+d.error);loadTZ();}
+    loadTZ();
+
+    // === USERS ===
+    async function loadUsers(){const r=await fetch('/api/users/');const d=await r.json();document.getElementById('users-list').innerHTML=d.map(u=>`<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px"><div style="flex:1"><b>${u.name}</b> (uid:${u.uid})<br><span style="color:var(--subtext);font-size:12px">${u.home} — ${u.shell}</span></div><button class="btn btn-blue btn-small" onclick="chPassModal('${u.name}')">Password</button></div>`).join('');}
+    function createUserModal(){showModal(`<h3>Create User</h3><input id="nu-name" placeholder="Username"><input id="nu-pass" type="password" placeholder="Password"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doCreateUser()">Create</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
+    async function doCreateUser(){const r=await fetch('/api/users/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('nu-name').value,password:document.getElementById('nu-pass').value})});const d=await r.json();closeModal();alert(d.ok?'Created!':'Error: '+d.error);loadUsers();}
+    function chPassModal(u){showModal(`<h3>Change Password: ${u}</h3><input id="cp-pass" type="password" placeholder="New password"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doChPass('${u}')">Change</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
+    async function doChPass(u){await fetch('/api/users/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:document.getElementById('cp-pass').value})});closeModal();alert('Done!');}
+    loadUsers();
+
+    // === VENVS ===
+    async function loadVenvs(){const r=await fetch('/api/venv/');const d=await r.json();document.getElementById('venv-list').innerHTML=d.length?d.map(v=>`<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px"><div style="flex:1"><b>${v.name}</b><br><span style="color:var(--subtext);font-size:12px">${v.path}</span></div><button class="btn btn-blue btn-small" onclick="venvPkgs('${v.path}')">Packages</button></div>`).join(''):'<p style="color:var(--subtext)">No venvs found</p>';}
+    function createVenvModal(){showModal(`<h3>Create Venv</h3><input id="venv-path" placeholder="/home/egamgia/myproject/.venv"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doCreateVenv()">Create</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
+    async function doCreateVenv(){const r=await fetch('/api/venv/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:document.getElementById('venv-path').value})});const d=await r.json();closeModal();alert(d.ok?'Created!':'Error: '+d.error);loadVenvs();}
+    async function venvPkgs(path){const r=await fetch(`/api/venv/packages?venv_path=${encodeURIComponent(path)}`);const d=await r.json();showModal(`<h3>Packages</h3><div style="max-height:40vh;overflow:auto">${d.map(p=>`<div style="padding:4px 0;border-bottom:1px solid var(--overlay)">${p.name} <span style="color:var(--subtext)">${p.version}</span></div>`).join('')}</div><div style="margin-top:12px;display:flex;gap:8px"><input id="venv-pkg" placeholder="package name"><button class="btn btn-green btn-small" onclick="venvInstall('${path}')">Install</button></div><button class="btn btn-red" style="margin-top:8px" onclick="closeModal()">Close</button>`);}
+    async function venvInstall(path){const pkg=document.getElementById('venv-pkg').value;if(!pkg)return;const r=await fetch('/api/venv/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({venv_path:path,package:pkg})});const d=await r.json();alert(d.ok?'Installed!':d.output);}
+    loadVenvs();
+
+    // === NGINX ===
+    async function loadNginx(){const[st,sites]=await Promise.all([fetch('/api/nginx/status').then(r=>r.json()),fetch('/api/nginx/sites').then(r=>r.json())]);
+    document.getElementById('nginx-status').innerHTML=`<span style="color:${st.active?'var(--green)':'var(--red)'}">nginx: ${st.active?'active':'inactive'}</span>`;
+    document.getElementById('nginx-sites').innerHTML=sites.length?sites.map(s=>`<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px"><div style="flex:1"><b>${s.name}</b> <span style="color:${s.enabled?'var(--green)':'var(--subtext)'}"> ${s.enabled?'enabled':'disabled'}</span></div><button class="btn btn-small ${s.enabled?'btn-red':'btn-green'}" onclick="nginxToggle('${s.name}',${s.enabled})">${s.enabled?'Disable':'Enable'}</button></div>`).join(''):'<p style="color:var(--subtext)">No sites configured</p>';}
+    function createProxyModal(){showModal(`<h3>New Reverse Proxy</h3><input id="nx-name" placeholder="Site name (e.g. myapp)"><input id="nx-server" placeholder="Server name (e.g. myapp.local)" value="_"><input id="nx-port" placeholder="Proxy to port" value="8080"><input id="nx-listen" placeholder="Listen port" value="80"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doCreateProxy()">Create</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
+    async function doCreateProxy(){await fetch('/api/nginx/create-proxy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('nx-name').value,server_name:document.getElementById('nx-server').value,proxy_port:parseInt(document.getElementById('nx-port').value),listen:parseInt(document.getElementById('nx-listen').value)})});closeModal();loadNginx();}
+    async function nginxToggle(name,enabled){await fetch(`/api/nginx/${enabled?'disable':'enable'}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});loadNginx();}
+    loadNginx();
+
+    // === WAKE-ON-LAN ===
+    async function loadWol(){const r=await fetch('/api/wol/devices');const d=await r.json();document.getElementById('wol-devices').innerHTML=d.length?d.map(dev=>`<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px"><div style="flex:1"><b>${dev.name}</b><br><span style="color:var(--subtext);font-size:12px">${dev.mac} ${dev.ip?'('+dev.ip+')':''}</span></div><button class="btn btn-green" onclick="wolWake('${dev.mac}')">⚡ Wake</button><button class="btn btn-red btn-small" onclick="wolRemove('${dev.mac}')">✕</button></div>`).join(''):'<p style="color:var(--subtext)">No devices. Add one or scan the network.</p>';}
+    function wolAddModal(){showModal(`<h3>Add WoL Device</h3><input id="wol-name" placeholder="Device name (e.g. My PC)"><input id="wol-mac" placeholder="MAC address (e.g. AA:BB:CC:DD:EE:FF)"><input id="wol-ip" placeholder="IP (optional)"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="wolAdd()">Add</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
+    async function wolAdd(){await fetch('/api/wol/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('wol-name').value,mac:document.getElementById('wol-mac').value,ip:document.getElementById('wol-ip').value})});closeModal();loadWol();}
+    async function wolWake(mac){const r=await fetch('/api/wol/wake',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mac})});const d=await r.json();alert(d.ok?'Magic packet sent!':'Error: '+d.error);}
+    async function wolRemove(mac){if(confirm('Remove?')){await fetch('/api/wol/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mac})});loadWol();}}
+    async function wolScan(){document.getElementById('wol-scan').innerHTML='<p>Scanning...</p>';const r=await fetch('/api/wol/scan');const d=await r.json();document.getElementById('wol-scan').innerHTML='<label style="font-size:11px;color:var(--subtext)">Devices on network:</label>'+d.map(dev=>`<div style="padding:4px 0;display:flex;gap:12px;align-items:center"><span>${dev.ip}</span><code style="color:var(--subtext)">${dev.mac}</code><button class="btn btn-green btn-small" onclick="document.getElementById('wol-mac').value='${dev.mac}';document.getElementById('wol-ip').value='${dev.ip}';wolAddModal()">+ Add</button></div>`).join('');}
+    loadWol();
+
+    // === TELEGRAM ===
+    async function loadTelegram(){const r=await fetch('/api/telegram/config');const d=await r.json();document.getElementById('tg-chatid').value=d.chat_id||'';document.getElementById('tg-enabled').checked=d.enabled;
+    const alerts=d.alerts||{};document.getElementById('tg-alerts').innerHTML=Object.entries(alerts).map(([k,v])=>`<label style="display:block;margin:4px 0"><input type="checkbox" class="tg-alert-chk" data-key="${k}" ${v?'checked':''}> ${k.replace(/_/g,' ')}</label>`).join('');}
+    async function saveTelegram(){const alerts={};document.querySelectorAll('.tg-alert-chk').forEach(c=>{alerts[c.dataset.key]=c.checked;});await fetch('/api/telegram/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:document.getElementById('tg-token').value,chat_id:document.getElementById('tg-chatid').value,enabled:document.getElementById('tg-enabled').checked,alerts})});alert('Saved!');}
+    async function testTelegram(){const r=await fetch('/api/telegram/test',{method:'POST'});const d=await r.json();alert(d.ok?'Message sent! Check Telegram.':'Failed — check token and chat_id');}
+    loadTelegram();
+
+    // === SENSORS ===
+    const SENSOR_COLORS = {DHT22:'#f9e2af',BME280:'#89b4fa',BMP280:'#89dceb',DS18B20:'#a6e3a1','MQ-2':'#fab387','HC-SR04':'#cba6f7',PIR_HC_SR501:'#f38ba8',RELAY_MODULE:'#f5c2e7',ESP32_MQTT:'#94e2d5',ARDUINO_SERIAL:'#74c7ec'};
+    let sensorCatalog={}, placedSensors=[];
+    const SENSOR_PIN_MAP = {DHT22:7,BME280:3,BMP280:3,DS18B20:7,'MQ-2':11,'HC-SR04':16,PIR_HC_SR501:11,RELAY_MODULE:12,ESP32_MQTT:0,ARDUINO_SERIAL:0};
+    let pinAssignments = {};
+    let assigningPinFor = null;
+
+    async function initSensorBoard(){
+        const r=await fetch('/api/sensors/catalog');sensorCatalog=await r.json();
+        // Render palette
+        document.getElementById('sensor-palette').innerHTML=Object.entries(sensorCatalog).map(([k,s])=>`<div draggable="true" class="sensor-drag" data-type="${k}" style="padding:6px 8px;background:${SENSOR_COLORS[k]||'var(--overlay)'};color:#1e1e2e;border-radius:4px;font-size:11px;cursor:grab;font-weight:bold" ondragstart="event.dataTransfer.setData('type','${k}')">${k.replace(/_/g,' ')}<br><span style="font-size:9px;font-weight:normal">${s.description}</span></div>`).join('');
+        // Render RPi pins (clickable for assignment)
+        const pins=[];for(let i=1;i<=40;i++){const color=([2,4].includes(i)?'#f38ba8':[1,17].includes(i)?'#fab387':[6,9,14,20,25,30,34,39].includes(i)?'#585b70':'#a6e3a1');pins.push(`<div id="pin-${i}" onclick="pinClicked(${i})" style="width:18px;height:18px;border-radius:50%;background:${color};border:2px solid rgba(255,255,255,0.2);cursor:pointer;transition:transform 0.1s" title="Pin ${i}"></div>`);}
+        document.getElementById('rpi-pins-visual').innerHTML=pins.join('');
+        // Drop zone
+        const board=document.getElementById('visual-board');
+        board.ondragover=e=>e.preventDefault();
+        board.ondrop=e=>{e.preventDefault();const type=e.dataTransfer.getData('type');if(!type)return;const rect=board.getBoundingClientRect();placeSensor(type,e.clientX-rect.left,e.clientY-rect.top);};
+        // Load registered sensors and spread them around the Pi
+        const sr=await fetch('/api/sensors/');const registered=await sr.json();
+        const boardEl=document.getElementById('visual-board');
+        const bw=boardEl.offsetWidth||800,bh=boardEl.offsetHeight||500;
+        registered.forEach((s,i)=>{
+            const angle=(i/(registered.length||1))*Math.PI*2 - Math.PI/2;
+            const rx=bw/2 + Math.cos(angle)*180;
+            const ry=bh/2 + Math.sin(angle)*140;
+            placeSensor(s.type,rx,ry,s);
+        });
+    }
+
+    function placeSensor(type,x,y,existing){
+        const id=existing?.id||type.toLowerCase()+'-'+Date.now();
+        const idx=placedSensors.length;
+        const s=sensorCatalog[type];if(!s)return;
+        const color=SENSOR_COLORS[type]||'#cdd6f4';
+        // Default pin assignment from catalog
+        const defaultPins=SENSOR_PIN_MAP[type]?[SENSOR_PIN_MAP[type]]:[];
+        pinAssignments[idx]=defaultPins;
+        const div=document.createElement('div');
+        div.id='placed-'+id;
+        div.style.cssText=`position:absolute;left:${x}px;top:${y}px;background:${color};color:#1e1e2e;padding:8px 10px;border-radius:6px;font-size:11px;cursor:move;z-index:3;min-width:90px;box-shadow:0 2px 8px rgba(0,0,0,0.3)`;
+        div.innerHTML=`<b>${type.replace(/_/g,' ')}</b><div id="val-${id}" style="font-size:13px;font-weight:bold;margin-top:2px">--</div><div style="font-size:9px;opacity:0.7">${s.protocol}</div><div style="margin-top:4px;display:flex;gap:4px"><button onclick="event.stopPropagation();enablePinAssignment(${idx})" style="font-size:9px;padding:2px 6px;border:1px solid rgba(0,0,0,0.3);border-radius:3px;background:rgba(255,255,255,0.3);cursor:pointer">🔌</button><button onclick="event.stopPropagation();removePlacedSensor(${idx})" style="font-size:9px;padding:2px 6px;border:1px solid rgba(0,0,0,0.3);border-radius:3px;background:rgba(243,139,168,0.5);cursor:pointer">✕</button></div>`;
+        // Draggable
+        div.onmousedown=e=>{if(e.target.tagName==='BUTTON')return;const ox=e.offsetX,oy=e.offsetY;const move=ev=>{div.style.left=(ev.clientX-div.parentElement.getBoundingClientRect().left-ox)+'px';div.style.top=(ev.clientY-div.parentElement.getBoundingClientRect().top-oy)+'px';drawWires();};const up=()=>{document.removeEventListener('mousemove',move);document.removeEventListener('mouseup',up);};document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);};
+        document.getElementById('placed-sensors').appendChild(div);
+        placedSensors.push({id,type,x,y,element:div});
+        drawWires();
+        if(existing)fetchSensorData(id);
+    }
+
+    function pinClicked(pinNum){
+        if(assigningPinFor===null)return;
+        if(!pinAssignments[assigningPinFor])pinAssignments[assigningPinFor]=[];
+        const arr=pinAssignments[assigningPinFor];
+        const idx=arr.indexOf(pinNum);
+        if(idx>=0){arr.splice(idx,1);}else{arr.push(pinNum);}
+        // Update modal display
+        const el=document.getElementById('assign-list');
+        if(el)el.textContent=arr.map(p=>'Pin '+p).join(', ')||'none';
+        // Flash the pin
+        const pinEl=document.getElementById('pin-'+pinNum);
+        if(pinEl){pinEl.style.background='#f5e0dc';setTimeout(()=>{pinEl.style.background='';},300);}
+        drawWires();
+    }
+
+    // Default pin map (used as initial assignment when dropping)
+
+    // Pin positions: map sensor type to its primary data pin (physical pin number)
+    // Track pin assignments per placed sensor: {sensorIdx: [pin1, pin2, ...]}
+
+    function drawWires(){
+        const svg=document.getElementById('board-svg');
+        const board=document.getElementById('visual-board').getBoundingClientRect();
+        let paths='';
+        placedSensors.forEach((s,idx)=>{
+            if(s.removed)return;
+            const el=s.element;
+            const sx=parseInt(el.style.left)+el.offsetWidth/2;
+            const sy=parseInt(el.style.top)+el.offsetHeight;
+            const pins=pinAssignments[idx]||[];
+            const color=SENSOR_COLORS[s.type]||'#cdd6f4';
+            if(pins.length===0){
+                // Default: connect to center of Pi
+                const rpi=document.getElementById('rpi-visual');const rpiRect=rpi.getBoundingClientRect();
+                const tx=rpiRect.left-board.left+rpiRect.width/2;const ty=rpiRect.top-board.top+rpiRect.height/2;
+                const my=(sy+ty)/2;
+                paths+=`<path d="M${sx},${sy} C${sx},${my} ${tx},${my} ${tx},${ty}" stroke="${color}" stroke-width="2" fill="none" opacity="0.3" stroke-dasharray="4"/>`;
+            } else {
+                pins.forEach((pinNum,pi)=>{
+                    const pinEl=document.getElementById('pin-'+pinNum);
+                    if(!pinEl)return;
+                    const pr=pinEl.getBoundingClientRect();
+                    const tx=pr.left-board.left+5;const ty=pr.top-board.top+5;
+                    // Offset start point slightly per wire
+                    const sxOff=sx+(pi-pins.length/2)*8;
+                    const my=(sy+ty)/2;
+                    paths+=`<path d="M${sxOff},${sy} C${sxOff},${my} ${tx},${my} ${tx},${ty}" stroke="${color}" stroke-width="2.5" fill="none" opacity="0.8"/>`;
+                    paths+=`<circle cx="${tx}" cy="${ty}" r="4" fill="${color}"/>`;
+                });
+            }
+        });
+        svg.innerHTML=paths;
+    }
+
+    function enablePinAssignment(sensorIdx){
+        assigningPinFor=sensorIdx;
+        const s=placedSensors[sensorIdx];
+        const cat=sensorCatalog[s.type]||{};
+        const pinsInfo=cat.pins?Object.entries(cat.pins).map(([k,v])=>`<b>${k}</b> → ${v}`).join('<br>'):'';
+        document.querySelectorAll('[id^="pin-"]').forEach(p=>{p.style.cursor='crosshair';p.style.boxShadow='0 0 4px #f5e0dc';});
+        showModal(`<h3>Assign Pins: ${s.type.replace(/_/g,' ')}</h3>
+<div style="background:var(--bg);padding:8px;border-radius:4px;margin:8px 0;font-size:12px">${pinsInfo||'No wiring info'}</div>
+<p style="color:var(--subtext);font-size:12px">Click pins on the Pi header. Click again to remove.</p>
+<p style="margin-top:8px;font-size:13px">Connected: <b id="assign-list">${(pinAssignments[sensorIdx]||[]).map(p=>'Pin '+p).join(', ')||'none'}</b></p>
+<div style="margin-top:12px;display:flex;gap:8px"><button class="btn btn-green" onclick="finishPinAssignment()">Done</button><button class="btn btn-red" onclick="clearPinAssignment(${sensorIdx})">Clear All</button></div>`);
+    }
+
+    function finishPinAssignment(){
+        assigningPinFor=null;
+        document.querySelectorAll('[id^="pin-"]').forEach(p=>{p.style.cursor='pointer';p.style.boxShadow='';});
+        closeModal();drawWires();
+    }
+
+    function clearPinAssignment(idx){
+        pinAssignments[idx]=[];
+        document.getElementById('assign-list').textContent='none';
+        drawWires();
+    }
+
+    function removePlacedSensor(idx){
+        const s=placedSensors[idx];
+        if(!s)return;
+        s.element.remove();
+        s.removed=true;
+        delete pinAssignments[idx];
+        drawWires();
+    }
+
+    async function fetchSensorData(id){
+        try{const r=await fetch(`/api/sensors/data/${id}/latest`);const d=await r.json();const el=document.getElementById('val-'+id);if(el){const vals=Object.entries(d).map(([k,v])=>`${k}:${v.value}`).join(' ');el.textContent=vals||'--';}}catch(e){}
+    }
+
+    // Refresh sensor values every 5s
+    setInterval(()=>{placedSensors.forEach(s=>fetchSensorData(s.id));},5000);
+    // Redraw wires on resize
+    window.addEventListener('resize',drawWires);
+
+    async function loadSensorsDashboard(){initSensorBoard();}
+    async function loadSensorsCatalog(){
+        const r=await fetch('/api/sensors/catalog');const d=await r.json();
+        document.getElementById('sensors-catalog-list').innerHTML=Object.entries(d).map(([key,s])=>`<div class="card" style="cursor:pointer" onclick="showWiring('${key}')"><b>${key}</b><br><span style="color:var(--subtext);font-size:12px">${s.description}</span><br><span style="font-size:11px;color:var(--blue)">${s.protocol}</span></div>`).join('');
+    }
+    async function showWiring(key){const r=await fetch('/api/sensors/catalog');const d=await r.json();const s=d[key];
+    showModal(`<h3>${key}</h3><p style="color:var(--subtext)">${s.description}</p><div class="card" style="margin:12px 0"><label>Wiring</label><div style="margin-top:8px;font-size:13px">${Object.entries(s.pins).map(([pin,to])=>`<div style="padding:4px 0;display:flex;justify-content:space-between"><b>${pin}</b><span style="color:var(--green)">${to}</span></div>`).join('')}</div></div><div class="card"><label>Notes</label><p style="margin-top:4px;font-size:12px">${s.notes}</p></div><p style="margin-top:8px;font-size:12px">Library: <code>${s.library}</code></p><button class="btn btn-red" style="margin-top:12px" onclick="closeModal()">Close</button>`);}
+    async function loadSensorsManage(){const r=await fetch('/api/sensors/');const d=await r.json();document.getElementById('sensors-registered').innerHTML=d.length?d.map(s=>`<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px"><div style="flex:1"><b>${s.name}</b> (${s.type})<br><span style="color:var(--subtext);font-size:12px">ID: ${s.id}${s.gpio_pin?' | GPIO'+s.gpio_pin:''}${s.mqtt_topic?' | MQTT: '+s.mqtt_topic:''}${s.serial_port?' | Serial: '+s.serial_port:''}</span></div><button class="btn btn-red btn-small" onclick="removeSensor('${s.id}')">Remove</button></div>`).join(''):'<p style="color:var(--subtext)">No sensors registered</p>';}
+    function addSensorModal(){showModal(`<h3>Register Sensor</h3><input id="as-id" placeholder="Unique ID (e.g. living-room-temp)"><input id="as-name" placeholder="Display name"><select id="as-type" style="width:100%;padding:8px;margin:6px 0;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)"><option value="">Select type...</option></select><input id="as-gpio" placeholder="GPIO pin (optional)" type="number"><input id="as-mqtt" placeholder="MQTT topic (e.g. sensors/esp1/temp)"><input id="as-serial" placeholder="Serial port (e.g. /dev/ttyUSB0)"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doAddSensor()">Register</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);
+    fetch('/api/sensors/catalog').then(r=>r.json()).then(d=>{const sel=document.getElementById('as-type');Object.keys(d).forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k+' — '+d[k].description;sel.appendChild(o);});});}
+    async function doAddSensor(){await fetch('/api/sensors/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:document.getElementById('as-id').value,name:document.getElementById('as-name').value,type:document.getElementById('as-type').value,gpio_pin:document.getElementById('as-gpio').value?parseInt(document.getElementById('as-gpio').value):null,mqtt_topic:document.getElementById('as-mqtt').value,serial_port:document.getElementById('as-serial').value})});closeModal();loadSensorsManage();}
+    async function removeSensor(id){if(confirm('Remove?')){await fetch('/api/sensors/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});loadSensorsManage();}}
+    loadSensorsDashboard();loadSensorsCatalog();loadSensorsManage();
+
+    function loadWokwi(){document.getElementById('wokwi-frame').src=document.getElementById('wokwi-project').value;}
+    function loadWokwiCustom(){const url=document.getElementById('wokwi-custom').value.trim();if(url)document.getElementById('wokwi-frame').src=url;}
+
+    // === FIREWALL ===
+    async function loadFirewall(){const r=await fetch('/api/firewall/status');const d=await r.json();document.getElementById('fw-status').innerHTML=`<span style="color:${d.active?'var(--green)':'var(--red)'}">UFW: ${d.active?'active':'inactive'}</span>`;document.getElementById('fw-rules').textContent=d.raw||'No rules';}
+    async function fwEnable(){await fetch('/api/firewall/enable',{method:'POST'});loadFirewall();}
+    async function fwDisable(){await fetch('/api/firewall/disable',{method:'POST'});loadFirewall();}
+    function fwAddModal(){showModal(`<h3>Add Firewall Rule</h3><input id="fw-rule" placeholder="allow 80/tcp"><p style="color:var(--subtext);font-size:11px;margin:4px 0">Examples: allow 80/tcp, allow from 192.168.1.0/24, deny 23</p><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doFwAdd()">Add</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
+    async function doFwAdd(){const r=await fetch('/api/firewall/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rule:document.getElementById('fw-rule').value})});const d=await r.json();closeModal();alert(d.output||'Done');loadFirewall();}
+    loadFirewall();
+
+    // === AUTH LOGS ===
+    async function loadAuthLogs(){const[logs,failed]=await Promise.all([fetch('/api/logs/auth').then(r=>r.json()),fetch('/api/logs/failed').then(r=>r.json())]);
+    document.getElementById('auth-cards').innerHTML=`<div class="card"><label>Failed Attempts</label><div class="value" style="color:${failed.count>10?'var(--red)':'var(--green)'}">${failed.count}</div></div>`;
+    document.getElementById('auth-log').textContent=logs.logs||'No logs';}
+    loadAuthLogs();
+
+    // === DISK ===
+    async function loadDisk(){const r=await fetch('/api/disk/');const d=await r.json();document.getElementById('disk-mounts').innerHTML=d.mounts.map(m=>`<div class="card" style="margin-bottom:8px"><div style="display:flex;justify-content:space-between"><b>${m.device}</b><span>${m.mount}</span></div><div style="margin-top:8px;background:var(--overlay);border-radius:4px;height:20px;overflow:hidden"><div style="height:100%;background:${parseInt(m.percent)>85?'var(--red)':'var(--green)'};width:${m.percent}"></div></div><div style="display:flex;justify-content:space-between;margin-top:4px;font-size:12px;color:var(--subtext)"><span>Used: ${m.used}/${m.size}</span><span>Free: ${m.avail}</span><span>${m.percent}</span></div></div>`).join('');}
+    loadDisk();
+
+    // === OLLAMA (floating panel) ===
+    let chatHistory=[];
+    async function sendChat(){
+        const input=document.getElementById('chat-input');const msg=input.value.trim();if(!msg)return;input.value='';
+        const body=document.getElementById('chat-panel-body');
+        body.innerHTML+=`<div class="chat-msg user">${escH(msg)}</div><div class="chat-msg ai" id="chat-typing" style="color:var(--subtext)">...</div>`;
+        body.scrollTop=body.scrollHeight;
+        const r=await fetch('/api/ollama/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,history:chatHistory})});const d=await r.json();
+        document.getElementById('chat-typing')?.remove();
+        if(d.ok){chatHistory.push({role:'user',content:msg},{role:'assistant',content:d.reply});body.innerHTML+=`<div class="chat-msg ai">${escH(d.reply)}</div>`;}
+        else{body.innerHTML+=`<div class="chat-msg ai" style="color:var(--red)">${d.reply}</div>`;}
+        body.scrollTop=body.scrollHeight;
+    }
+
+    // === OLLAMA page (keep for status/install) ===
+    async function loadOllama(){const r=await fetch('/api/ollama/status');const d=await r.json();document.getElementById('ollama-status').innerHTML=d.running?`<span style="color:var(--green)">Ollama running — Models: ${d.models.join(', ')||'none'}</span>`:'<span style="color:var(--red)">Ollama not running</span>';}
+    async function ollamaInstall(){alert('Installing Ollama in background...');await fetch('/api/ollama/install',{method:'POST'});setTimeout(loadOllama,30000);}
+    async function ollamaPull(){const model=prompt('Model name:','qwen2.5:1.5b');if(!model)return;const r=await fetch('/api/ollama/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model})});const d=await r.json();alert(d.ok?'Pulled!':d.output);loadOllama();}
+    async function ollamaSend(){sendChat();}
+    loadOllama();
+
+    // === NOTES ===
+    async function loadNotes(){const r=await fetch('/api/notes/');const d=await r.json();document.getElementById('notes-list').innerHTML=d.length?d.map(n=>`<div class="card" style="cursor:pointer" onclick="editNoteModal(${n.id},'${escAttr(n.title)}')"><b>${escH(n.title)}</b><p style="color:var(--subtext);font-size:12px;margin-top:4px;max-height:60px;overflow:hidden">${escH(n.content).substring(0,100)}</p><span style="font-size:10px;color:var(--overlay)">${new Date(n.created*1000).toLocaleDateString()}</span></div>`).join(''):'<p style="color:var(--subtext)">No notes</p>';}
+    function escAttr(s){return s.replace(/'/g,"\\'").replace(/"/g,'&quot;');}
+    function newNoteModal(){showModal(`<h3>New Note</h3><input id="note-title" placeholder="Title"><textarea id="note-content" placeholder="Content..."></textarea><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doSaveNote()">Save</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
+    async function doSaveNote(){await fetch('/api/notes/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:document.getElementById('note-title').value,content:document.getElementById('note-content').value})});closeModal();loadNotes();}
+    async function editNoteModal(id,title){const r=await fetch('/api/notes/');const notes=await r.json();const n=notes.find(x=>x.id===id);if(!n)return;showModal(`<h3>Edit Note</h3><input id="note-title" value="${escH(n.title)}"><textarea id="note-content">${escH(n.content)}</textarea><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doUpdateNote(${id})">Save</button><button class="btn btn-red" onclick="doDeleteNote(${id})">Delete</button><button class="btn" style="background:var(--overlay);color:var(--text)" onclick="closeModal()">Cancel</button></div>`);}
+    async function doUpdateNote(id){await fetch('/api/notes/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,title:document.getElementById('note-title').value,content:document.getElementById('note-content').value})});closeModal();loadNotes();}
+    async function doDeleteNote(id){if(confirm('Delete?')){await fetch('/api/notes/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});closeModal();loadNotes();}}
+    loadNotes();
+
+    // === MODAL ===
+    function showModal(html){document.getElementById('modal-content').innerHTML=html;document.getElementById('modal').classList.add('show');}
+    function closeModal(){document.getElementById('modal').classList.remove('show');}
+    document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
+    </script>
+</body>
+</html>
