@@ -53,12 +53,12 @@
         .skeleton { background: linear-gradient(90deg, var(--surface) 25%, var(--overlay) 50%, var(--surface) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; height: 20px; }
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         /* Breadcrumb topbar */
-        #topbar { padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--overlay); display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+        #topbar { padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--overlay); display: flex; align-items: center; justify-content: space-between; font-size: 13px; flex-shrink: 0; min-height: 40px; }
         #breadcrumb-nav { color: var(--subtext); }
         #breadcrumb-nav span { color: var(--text); font-weight: 500; }
         /* Tooltip */
         [data-tooltip] { position: relative; }
-        [data-tooltip]:hover::after { content: attr(data-tooltip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: var(--overlay); color: var(--text); padding: 4px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap; z-index: 100; }
+        [data-tooltip]:hover::after { content: attr(data-tooltip); position: absolute; top: 100%; left: 50%; transform: translateX(-50%); background: var(--overlay); color: var(--text); padding: 4px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap; z-index: 100; margin-top: 4px; }
         /* Progress bar */
         .progress-bar { height: 4px; background: var(--overlay); border-radius: 2px; overflow: hidden; margin-top: 8px; }
         .progress-fill { height: 100%; background: var(--green); transition: width 0.3s; border-radius: 2px; }
@@ -112,8 +112,6 @@
         .alert-critical { background: rgba(243,139,168,0.2); border: 1px solid var(--red); }
         .alert-warning { background: rgba(249,226,175,0.2); border: 1px solid var(--yellow); }
         /* Ollama chat panel */
-        #chat-toggle { position: fixed; top: 12px; right: 12px; z-index: 60; background: var(--mauve); color: #1e1e2e; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 18px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
-        #chat-toggle:hover { transform: scale(1.1); }
         #chat-panel { position: fixed; top: 0; right: -360px; width: 350px; height: 100vh; background: var(--surface); z-index: 55; display: flex; flex-direction: column; transition: right 0.3s; box-shadow: -4px 0 12px rgba(0,0,0,0.3); }
         #chat-panel.open { right: 0; }
         #chat-panel-header { padding: 12px 16px; border-bottom: 1px solid var(--overlay); display: flex; align-items: center; justify-content: space-between; }
@@ -162,6 +160,7 @@
             <div id="breadcrumb-nav">📊 <span>Monitor</span> › Dashboard</div>
             <div style="display:flex;gap:8px;align-items:center">
                 <button id="theme-toggle" onclick="toggleTheme()" data-tooltip="Toggle theme">🌙</button>
+                <button onclick="document.getElementById('chat-panel').classList.toggle('open')" style="background:none;border:none;font-size:18px;cursor:pointer;padding:4px" data-tooltip="AI Chat">🤖</button>
             </div>
         </div>
         <!-- Alerts banner -->
@@ -299,7 +298,7 @@
                 <button class="sub-tab" data-sub="camera-page">Camera</button>
             </div>
             <div class="sub-content active" id="gpio">
-                <div style="display:grid;grid-template-columns:1fr 280px;gap:16px;height:100%"><div class="card" style="overflow:auto"><label>40-Pin Header</label><div id="gpio-header" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px;max-width:600px;margin-left:auto;margin-right:auto"></div></div><div style="display:flex;flex-direction:column;gap:12px"><div class="card"><label>Legend</label><div style="margin-top:8px;font-size:12px;display:grid;gap:4px"><p><span style="color:#f38ba8">●</span> 5V</p><p><span style="color:#fab387">●</span> 3.3V</p><p><span style="color:#585b70">●</span> GND</p><p><span style="color:#a6e3a1">●</span> GPIO</p><p><span style="color:#89b4fa">●</span> Active</p></div></div><div class="card" style="flex:1"><label>Active Pins</label><div id="gpio-active" style="margin-top:8px;font-size:13px"></div></div></div></div>
+                <div style="display:grid;grid-template-columns:1fr 280px;gap:16px;height:100%"><div class="card" style="overflow:auto"><label>40-Pin Header</label><div id="gpio-header" style="display:grid;grid-template-columns:1fr 24px 1fr;gap:6px;margin-top:12px;max-width:600px;margin-left:auto;margin-right:auto"></div></div><div style="display:flex;flex-direction:column;gap:12px"><div class="card"><label>Legend</label><div style="margin-top:8px;font-size:12px;display:grid;gap:4px"><p><span style="color:#f38ba8">●</span> 5V</p><p><span style="color:#fab387">●</span> 3.3V</p><p><span style="color:#585b70">●</span> GND</p><p><span style="color:#a6e3a1">●</span> GPIO</p><p><span style="color:#89b4fa">●</span> Active</p><p><span style="color:#f9e2af">●</span> Occupied</p></div></div><div class="card" style="flex:1"><label>Active Pins</label><div id="gpio-active" style="margin-top:8px;font-size:13px"></div></div></div></div>
             </div>
             <div class="sub-content" id="disk-page">
                 <div id="disk-mounts"></div>
@@ -410,8 +409,7 @@
         </div>
     </div>
 
-    <!-- Chat toggle + panel -->
-    <button id="chat-toggle" onclick="document.getElementById('chat-panel').classList.toggle('open')">🤖</button>
+    <!-- Chat panel -->
     <div id="chat-panel">
         <div id="chat-panel-header"><h3>🤖 Ollama</h3><button onclick="document.getElementById('chat-panel').classList.remove('open')" style="background:none;border:none;color:var(--subtext);cursor:pointer;font-size:16px">✕</button></div>
         <div id="chat-panel-body"></div>
@@ -629,16 +627,38 @@
     // === GPIO ===
     const HEADER=[{p:1,type:'3v3'},{p:2,type:'5v'},{p:3,type:'gpio',bcm:2},{p:4,type:'5v',note:'FAN+'},{p:5,type:'gpio',bcm:3},{p:6,type:'gnd',note:'FAN-'},{p:7,type:'gpio',bcm:4},{p:8,type:'gpio',bcm:14},{p:9,type:'gnd'},{p:10,type:'gpio',bcm:15},{p:11,type:'gpio',bcm:17},{p:12,type:'gpio',bcm:18},{p:13,type:'gpio',bcm:27},{p:14,type:'gnd'},{p:15,type:'gpio',bcm:22},{p:16,type:'gpio',bcm:23},{p:17,type:'3v3'},{p:18,type:'gpio',bcm:24},{p:19,type:'gpio',bcm:10},{p:20,type:'gnd'},{p:21,type:'gpio',bcm:9},{p:22,type:'gpio',bcm:25},{p:23,type:'gpio',bcm:11},{p:24,type:'gpio',bcm:8},{p:25,type:'gnd'},{p:26,type:'gpio',bcm:7},{p:27,type:'gpio',bcm:0},{p:28,type:'gpio',bcm:1},{p:29,type:'gpio',bcm:5},{p:30,type:'gnd'},{p:31,type:'gpio',bcm:6},{p:32,type:'gpio',bcm:12},{p:33,type:'gpio',bcm:13},{p:34,type:'gnd'},{p:35,type:'gpio',bcm:19},{p:36,type:'gpio',bcm:16},{p:37,type:'gpio',bcm:26},{p:38,type:'gpio',bcm:20},{p:39,type:'gnd'},{p:40,type:'gpio',bcm:21}];
     let gpioStates={};
-    async function loadGPIO(){const r=await fetch('/api/gpio/pins');const d=await r.json();gpioStates={};d.pins.forEach(p=>{gpioStates[p.pin]=p;});renderGPIO();}
+    async function loadGPIO(){const r=await fetch('/api/gpio/pins');const d=await r.json();gpioStates={};d.pins.forEach(p=>{gpioStates[p.pin]=p;});
+    // Fetch registered sensors to show what's connected to each pin
+    const sr=await fetch('/api/sensors/');const sensors=await sr.json();
+    window._pinUsage={};// physical pin -> sensor name
+    const bcmToPhys={2:3,3:5,4:7,5:29,6:31,7:26,8:24,9:21,10:19,11:23,12:32,13:33,14:8,15:10,16:36,17:11,18:12,19:35,20:38,21:40,22:15,23:16,24:18,25:22,26:37,27:13};
+    sensors.forEach(s=>{if(s.gpio_pin){const phys=bcmToPhys[s.gpio_pin];if(phys)window._pinUsage[phys]=s.name||s.type;}});
+    // Also map by BCM number for direct lookup
+    window._bcmUsage={};
+    sensors.forEach(s=>{if(s.gpio_pin)window._bcmUsage[s.gpio_pin]=s.name||s.type;});
+    renderGPIO();}
     function renderGPIO(){
-        let html='';for(let i=0;i<HEADER.length;i+=2){html+=renderPin(HEADER[i],'left')+renderPin(HEADER[i+1],'right');}
+        let html='';for(let i=0;i<HEADER.length;i+=2){html+=renderPin(HEADER[i],'left')+'<div style="display:flex;align-items:center;justify-content:center;color:var(--subtext);font-size:9px">•</div>'+renderPin(HEADER[i+1],'right');}
         document.getElementById('gpio-header').innerHTML=html;
         const active=Object.values(gpioStates).filter(s=>s.active);
         document.getElementById('gpio-active').innerHTML=active.length?active.map(s=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--overlay)"><span>GPIO${s.pin}</span><span>${s.value?'🟢':'⚫'}</span><button class="btn btn-red btn-small" onclick="gpioRelease(${s.pin})">×</button></div>`).join(''):'<p style="color:var(--subtext)">None</p>';
     }
-    function renderPin(pin,side){let color,label,click=false;if(pin.type==='5v'){color='#f38ba8';label='5V';}else if(pin.type==='3v3'){color='#fab387';label='3.3V';}else if(pin.type==='gnd'){color='#585b70';label='GND';}else{const st=gpioStates[pin.bcm];color=st&&st.active?'#89b4fa':'#a6e3a1';label=`GPIO${pin.bcm}`;click=true;}
-    const note=pin.note?` <span style="color:var(--yellow);font-size:10px">${pin.note}</span>`:'';const vd=(pin.type==='gpio'&&gpioStates[pin.bcm]?.active)?(gpioStates[pin.bcm].value?' 🟢':' ⚫'):'';
-    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;background:var(--surface);${click?'cursor:pointer;':''}${side==='right'?'flex-direction:row-reverse;':''}" ${click?`onclick="gpioModal(${pin.bcm})"`:''}><span style="width:14px;height:14px;border-radius:50%;background:${color};display:inline-block"></span><span style="flex:1;font-size:12px"><b>${pin.p}</b> ${label}${note}${vd}</span></div>`;}
+    function renderPin(pin, side) {
+      var color, label, click = false;
+      var usage = (window._pinUsage && window._pinUsage[pin.p]) || (pin.bcm !== undefined && window._bcmUsage && window._bcmUsage[pin.bcm]);
+      if (pin.type === '5v') { color = '#f38ba8'; label = '5V'; }
+      else if (pin.type === '3v3') { color = '#fab387'; label = '3.3V'; }
+      else if (pin.type === 'gnd') { color = '#585b70'; label = 'GND'; }
+      else { var st = gpioStates[pin.bcm]; color = usage ? '#f9e2af' : (st && st.active ? '#89b4fa' : '#a6e3a1'); label = 'GPIO' + pin.bcm; click = true; }
+      var note = pin.note ? ' <span style="color:var(--yellow);font-size:10px">' + pin.note + '</span>' : '';
+      var vd = (pin.type === 'gpio' && gpioStates[pin.bcm] && gpioStates[pin.bcm].active) ? (gpioStates[pin.bcm].value ? ' 🟢' : ' ⚫') : '';
+      var ut = usage ? ' <span style="color:#f9e2af;font-size:9px">⚡' + usage + '</span>' : '';
+      var bg = usage ? 'rgba(249,226,175,0.1)' : 'var(--surface)';
+      var dot = '<span style="width:14px;height:14px;border-radius:50%;background:' + color + ';display:inline-block;flex-shrink:0"></span>';
+      var txt = '<span style="flex:1;font-size:12px;text-align:' + (side === 'left' ? 'right' : 'left') + '"><b>' + pin.p + '</b> ' + label + note + vd + ut + '</span>';
+      var oc = click ? ' onclick="gpioModal(' + pin.bcm + ')"' : '';
+      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;background:' + bg + ';' + (click ? 'cursor:pointer;' : '') + (side === 'left' ? 'justify-content:flex-end;' : '') + '"' + oc + '>' + (side === 'left' ? txt + dot : dot + txt) + '</div>';
+    }
     function gpioModal(bcm){const st=gpioStates[bcm]||{};showModal(`<h3>GPIO ${bcm}</h3><p style="margin:8px 0;color:var(--subtext)">State: ${st.value===1?'🟢 HIGH':st.value===0?'⚫ LOW':'⚪ Unknown'}</p><div style="display:flex;gap:8px"><button class="btn btn-green" onclick="gpioSet(${bcm},1)">HIGH</button><button class="btn btn-red" onclick="gpioSet(${bcm},0)">LOW</button><button class="btn btn-blue" onclick="gpioRead(${bcm})">Read</button>${st.active?`<button class="btn" style="background:var(--overlay);color:var(--text)" onclick="gpioRelease(${bcm})">Release</button>`:''}</div><div id="gpio-result" style="margin-top:12px"></div>`);}
     async function gpioSet(b,v){const r=await fetch('/api/gpio/write',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:b,value:v})});const d=await r.json();document.getElementById('gpio-result').innerHTML=d.ok?`<span style="color:var(--green)">✓ Set ${v?'HIGH':'LOW'}</span>`:`<span style="color:var(--red)">${d.error}</span>`;loadGPIO();}
     async function gpioRead(b){const r=await fetch(`/api/gpio/read/${b}`);const d=await r.json();document.getElementById('gpio-result').innerHTML=d.error?`<span style="color:var(--red)">${d.error}</span>`:`Value: ${d.value?'🟢 HIGH':'⚫ LOW'}`;}
@@ -904,7 +924,9 @@
     }
     async function showWiring(key){const r=await fetch('/api/sensors/catalog');const d=await r.json();const s=d[key];
     showModal(`<h3>${key}</h3><p style="color:var(--subtext)">${s.description}</p><div class="card" style="margin:12px 0"><label>Wiring</label><div style="margin-top:8px;font-size:13px">${Object.entries(s.pins).map(([pin,to])=>`<div style="padding:4px 0;display:flex;justify-content:space-between"><b>${pin}</b><span style="color:var(--green)">${to}</span></div>`).join('')}</div></div><div class="card"><label>Notes</label><p style="margin-top:4px;font-size:12px">${s.notes}</p></div><p style="margin-top:8px;font-size:12px">Library: <code>${s.library}</code></p><button class="btn btn-red" style="margin-top:12px" onclick="closeModal()">Close</button>`);}
-    async function loadSensorsManage(){const r=await fetch('/api/sensors/');const d=await r.json();document.getElementById('sensors-registered').innerHTML=d.length?d.map(s=>`<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px"><div style="flex:1"><b>${s.name}</b> (${s.type})<br><span style="color:var(--subtext);font-size:12px">ID: ${s.id}${s.gpio_pin?' | GPIO'+s.gpio_pin:''}${s.mqtt_topic?' | MQTT: '+s.mqtt_topic:''}${s.serial_port?' | Serial: '+s.serial_port:''}</span></div><button class="btn btn-red btn-small" onclick="removeSensor('${s.id}')">Remove</button></div>`).join(''):'<p style="color:var(--subtext)">No sensors registered</p>';}
+    async function loadSensorsManage(){const r=await fetch('/api/sensors/');const d=await r.json();document.getElementById('sensors-registered').innerHTML=d.length?d.map(s=>`<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px"><div style="flex:1"><b>${s.name}</b> (${s.type})<br><span style="color:var(--subtext);font-size:12px">ID: ${s.id}${s.gpio_pin?' | GPIO'+s.gpio_pin:''}${s.mqtt_topic?' | MQTT: '+s.mqtt_topic:''}${s.serial_port?' | Serial: '+s.serial_port:''}</span></div><button class="btn btn-blue btn-small" onclick="editSensorModal('${s.id}')">Edit</button><button class="btn btn-red btn-small" onclick="removeSensor('${s.id}')">Remove</button></div>`).join(''):'<p style="color:var(--subtext)">No sensors registered</p>';}
+    async function editSensorModal(id){const r=await fetch('/api/sensors/');const sensors=await r.json();const s=sensors.find(x=>x.id===id);if(!s)return;showModal(`<h3>Edit: ${s.name}</h3><input id="es-name" value="${s.name}" placeholder="Name"><input id="es-gpio" value="${s.gpio_pin||''}" placeholder="GPIO pin" type="number"><input id="es-mqtt" value="${s.mqtt_topic||''}" placeholder="MQTT topic"><input id="es-serial" value="${s.serial_port||''}" placeholder="Serial port"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doEditSensor('${s.id}','${s.type}')">Save</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
+    async function doEditSensor(id,type){await fetch('/api/sensors/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,type,name:document.getElementById('es-name').value,gpio_pin:document.getElementById('es-gpio').value?parseInt(document.getElementById('es-gpio').value):null,mqtt_topic:document.getElementById('es-mqtt').value,serial_port:document.getElementById('es-serial').value})});closeModal();toast('Sensor updated','success');loadSensorsManage();}
     function addSensorModal(){showModal(`<h3>Register Sensor</h3><input id="as-id" placeholder="Unique ID (e.g. living-room-temp)"><input id="as-name" placeholder="Display name"><select id="as-type" style="width:100%;padding:8px;margin:6px 0;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)"><option value="">Select type...</option></select><input id="as-gpio" placeholder="GPIO pin (optional)" type="number"><input id="as-mqtt" placeholder="MQTT topic (e.g. sensors/esp1/temp)"><input id="as-serial" placeholder="Serial port (e.g. /dev/ttyUSB0)"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doAddSensor()">Register</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);
     fetch('/api/sensors/catalog').then(r=>r.json()).then(d=>{const sel=document.getElementById('as-type');Object.keys(d).forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k+' — '+d[k].description;sel.appendChild(o);});});}
     async function doAddSensor(){await fetch('/api/sensors/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:document.getElementById('as-id').value,name:document.getElementById('as-name').value,type:document.getElementById('as-type').value,gpio_pin:document.getElementById('as-gpio').value?parseInt(document.getElementById('as-gpio').value):null,mqtt_topic:document.getElementById('as-mqtt').value,serial_port:document.getElementById('as-serial').value})});closeModal();loadSensorsManage();}

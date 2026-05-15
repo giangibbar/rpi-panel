@@ -149,6 +149,30 @@ async def remove_sensor(body: RemoveSensor):
     return {"ok": True}
 
 
+class EditSensor(BaseModel):
+    id: str
+    name: str = ""
+    type: str = ""
+    gpio_pin: int | None = None
+    mqtt_topic: str = ""
+    serial_port: str = ""
+
+
+@router.post("/edit")
+async def edit_sensor(body: EditSensor):
+    sensors = load_sensors()
+    for s in sensors:
+        if s["id"] == body.id:
+            if body.name: s["name"] = body.name
+            if body.type: s["type"] = body.type
+            s["gpio_pin"] = body.gpio_pin
+            s["mqtt_topic"] = body.mqtt_topic
+            s["serial_port"] = body.serial_port
+            break
+    save_sensors(sensors)
+    return {"ok": True}
+
+
 class SensorReading(BaseModel):
     sensor_id: str
     metric: str
