@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RPi Panel</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖥️</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.18/lib/codemirror.min.css">
@@ -23,7 +25,45 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root { --bg: #1e1e2e; --surface: #313244; --overlay: #45475a; --text: #cdd6f4; --subtext: #a6adc8; --green: #a6e3a1; --red: #f38ba8; --blue: #89b4fa; --yellow: #f9e2af; --mauve: #cba6f7; }
-        body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', monospace; display: flex; height: 100vh; }
+        body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; display: flex; height: 100vh; transition: background 0.3s, color 0.3s; }
+        code, pre, .term-tab, #chat-panel-input input { font-family: 'JetBrains Mono', monospace; }
+        /* Toast */
+        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
+        .toast { padding: 12px 20px; border-radius: 8px; color: #fff; font-size: 13px; animation: slideIn 0.3s ease, fadeOut 0.3s ease 3.7s; opacity: 0; animation-fill-mode: forwards; box-shadow: 0 4px 12px rgba(0,0,0,0.3); max-width: 350px; }
+        .toast-success { background: #40a02b; }
+        .toast-error { background: #d20f39; }
+        .toast-info { background: #1e66f5; }
+        .toast-warning { background: #df8e1d; }
+        @keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes fadeOut { to { opacity: 0; transform: translateY(10px); } }
+        /* Gauge */
+        .gauge { position: relative; width: 100px; height: 100px; margin: 8px auto 0; }
+        .gauge svg { transform: rotate(-90deg); }
+        .gauge-bg { fill: none; stroke: var(--overlay); stroke-width: 8; }
+        .gauge-fill { fill: none; stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 0.8s ease, stroke 0.5s; }
+        .gauge-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; }
+        .gauge-label { text-align: center; font-size: 11px; color: var(--subtext); margin-top: 4px; }
+        /* Theme toggle */
+        #theme-toggle { background: none; border: none; cursor: pointer; font-size: 18px; padding: 4px; }
+        /* Transitions */
+        .page, .sub-content { transition: opacity 0.2s ease; }
+        .card { transition: transform 0.15s, box-shadow 0.15s; }
+        .card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        /* Skeleton */
+        .skeleton { background: linear-gradient(90deg, var(--surface) 25%, var(--overlay) 50%, var(--surface) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px; height: 20px; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        /* Breadcrumb topbar */
+        #topbar { padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--overlay); display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+        #breadcrumb-nav { color: var(--subtext); }
+        #breadcrumb-nav span { color: var(--text); font-weight: 500; }
+        /* Tooltip */
+        [data-tooltip] { position: relative; }
+        [data-tooltip]:hover::after { content: attr(data-tooltip); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: var(--overlay); color: var(--text); padding: 4px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap; z-index: 100; }
+        /* Progress bar */
+        .progress-bar { height: 4px; background: var(--overlay); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+        .progress-fill { height: 100%; background: var(--green); transition: width 0.3s; border-radius: 2px; }
+        /* Light theme */
+        body.light { --bg: #eff1f5; --surface: #ccd0da; --overlay: #bcc0cc; --text: #4c4f69; --subtext: #6c6f85; --green: #40a02b; --red: #d20f39; --blue: #1e66f5; --yellow: #df8e1d; --mauve: #8839ef; }
         #sidebar { width: 220px; background: var(--surface); padding: 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; transition: transform 0.3s; z-index: 50; }
         #sidebar h1 { font-size: 14px; padding: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--overlay); display: flex; align-items: center; justify-content: space-between; }
         .nav-btn { background: none; border: none; color: var(--subtext); padding: 9px 12px; text-align: left; border-radius: 6px; cursor: pointer; font-size: 13px; width: 100%; }
@@ -117,6 +157,13 @@
     </div>
 
     <div id="main">
+        <!-- Topbar -->
+        <div id="topbar">
+            <div id="breadcrumb-nav">📊 <span>Monitor</span> › Dashboard</div>
+            <div style="display:flex;gap:8px;align-items:center">
+                <button id="theme-toggle" onclick="toggleTheme()" data-tooltip="Toggle theme">🌙</button>
+            </div>
+        </div>
         <!-- Alerts banner -->
         <div id="alerts-bar" style="padding:8px 16px 0"></div>
 
@@ -378,6 +425,32 @@
     <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
     <script>
     // === NAV ===
+    // Toast system
+    function toast(msg, type='info') {
+        const t=document.createElement('div');t.className=`toast toast-${type}`;t.textContent=msg;
+        document.getElementById('toast-container').appendChild(t);
+        setTimeout(()=>t.remove(),4000);
+    }
+    // Theme
+    function toggleTheme(){document.body.classList.toggle('light');const isLight=document.body.classList.contains('light');document.getElementById('theme-toggle').textContent=isLight?'☀️':'🌙';localStorage.setItem('theme',isLight?'light':'dark');}
+    if(localStorage.getItem('theme')==='light'){document.body.classList.add('light');document.getElementById('theme-toggle').textContent='☀️';}
+    // Breadcrumb
+    const pageNames={
+        'monitor-page':'📊 Monitor','terminal-page':'💻 Terminal','system-page':'⚙️ System',
+        'files-page':'📁 Files','network-page':'🌐 Network','hardware-page':'🔌 Hardware',
+        'sensors-page':'🌡️ Sensors','dev-page':'🐍 Dev','security-page':'🔑 Security'
+    };
+    function updateBreadcrumb(page,sub){
+        const name=pageNames[page]||page;
+        document.getElementById('breadcrumb-nav').innerHTML=`${name}${sub?' › <span>'+sub+'</span>':''}`;
+    }
+    // Gauge helper
+    function renderGauge(value, max, color, unit='%') {
+        const pct=Math.min(value/max*100,100);const circ=2*Math.PI*42;const offset=circ-(pct/100*circ);
+        return `<div class="gauge"><svg width="100" height="100" viewBox="0 0 100 100"><circle class="gauge-bg" cx="50" cy="50" r="42"/><circle class="gauge-fill" cx="50" cy="50" r="42" stroke="${color}" stroke-dasharray="${circ}" stroke-dashoffset="${offset}"/></svg><div class="gauge-text">${Math.round(value)}${unit}</div></div>`;
+    }
+    function getColor(pct){return pct>80?'var(--red)':pct>60?'var(--yellow)':'var(--green)';}
+
     document.querySelectorAll('.nav-btn[data-page]').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -386,6 +459,7 @@
             document.getElementById(btn.dataset.page).classList.add('active');
             if (btn.dataset.page === 'terminal-page') fitActiveTerminal();
             document.getElementById('sidebar').classList.remove('open');
+            updateBreadcrumb(btn.dataset.page);
         });
     });
     // Sub-tabs
@@ -396,6 +470,7 @@
             parent.querySelectorAll('.sub-content').forEach(c => c.classList.remove('active'));
             tab.classList.add('active');
             document.getElementById(tab.dataset.sub).classList.add('active');
+            updateBreadcrumb(parent.id, tab.textContent);
         });
     });
 
@@ -415,11 +490,11 @@
     async function loadDashboard() {
         const r=await fetch('/api/system/stats'); const d=await r.json();
         document.getElementById('sys-cards').innerHTML = `
-            <div class="card"><label>CPU Load</label><div class="value">${d.load[0]}</div></div>
-            <div class="card"><label>Memory</label><div class="value">${d.mem_used_mb}/${d.mem_total_mb}MB</div><div style="color:var(--subtext)">${d.mem_percent}%</div></div>
-            <div class="card"><label>Temp</label><div class="value" style="color:${d.temp_c>70?'var(--red)':d.temp_c>55?'var(--yellow)':'var(--green)'}">${d.temp_c}°C</div></div>
-            <div class="card"><label>Disk</label><div class="value">${d.disk_used_gb}/${d.disk_total_gb}GB</div><div style="color:var(--subtext)">${d.disk_percent}%</div></div>
-            <div class="card"><label>Uptime</label><div class="value">${fmtUp(d.uptime_sec)}</div></div>`;
+            <div class="card">${renderGauge(parseFloat(d.load[0]),4,getColor(parseFloat(d.load[0])/4*100),'')}<div class="gauge-label">CPU Load</div></div>
+            <div class="card">${renderGauge(d.mem_percent,100,getColor(d.mem_percent))}<div class="gauge-label">RAM ${d.mem_used_mb}/${d.mem_total_mb}MB</div></div>
+            <div class="card">${renderGauge(d.temp_c,85,d.temp_c>70?'var(--red)':d.temp_c>55?'var(--yellow)':'var(--green)','°')}<div class="gauge-label">Temperature</div></div>
+            <div class="card">${renderGauge(d.disk_percent,100,getColor(d.disk_percent))}<div class="gauge-label">Disk ${d.disk_used_gb}/${d.disk_total_gb}GB</div></div>
+            <div class="card"><div class="gauge-text" style="position:static;font-size:22px;margin-top:20px">${fmtUp(d.uptime_sec)}</div><div class="gauge-label" style="margin-top:12px">Uptime</div></div>`;
         document.getElementById('proc-body').innerHTML = d.processes.map(p=>`<tr><td>${p.pid}</td><td>${p.cpu}</td><td>${p.mem}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.cmd}</td></tr>`).join('');
     }
     function fmtUp(s){const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?`${d}d ${h}h`:`${h}h ${m}m`;}
@@ -499,9 +574,9 @@
     async function submitService(){
         const env=document.getElementById('cs-env').value.split('\\n').filter(l=>l.trim());
         const body={name:document.getElementById('cs-name').value,description:document.getElementById('cs-desc').value,exec_start:document.getElementById('cs-exec').value,working_dir:document.getElementById('cs-workdir').value,user:document.getElementById('cs-user').value,after:document.getElementById('cs-after').value,restart:document.getElementById('cs-restart').value,env};
-        if(!body.name||!body.exec_start){alert('Name and Command are required');return;}
+        if(!body.name||!body.exec_start){toast('Name and Command are required','warning');return;}
         const r=await fetch('/api/services/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json();
-        if(d.ok){closeModal();if(confirm(`Service ${d.name} created! Enable and start it now?`)){await svcAction('start',d.name);}loadServices();}else{alert('Error: '+d.error);}
+        if(d.ok){closeModal();if(confirm(`Service ${d.name} created! Enable and start it now?`)){await svcAction('start',d.name);}loadServices();}else{toast('Error: '+d.error,'error');}
     }
     loadServices();
 
@@ -549,7 +624,7 @@
     // === PACKAGES ===
     async function checkUpdates(){document.getElementById('pkg-list').innerHTML='<p>Checking...</p>';const r=await fetch('/api/packages/upgradable');const d=await r.json();document.getElementById('pkg-list').innerHTML=d.count?`<p>${d.count} upgradable:</p>`+d.packages.map(p=>`<div style="padding:4px 0">${p}</div>`).join(''):'<p style="color:var(--green)">All up to date!</p>';}
     async function upgradeAll(){document.getElementById('pkg-list').innerHTML='<p>Upgrading...</p>';const r=await fetch('/api/packages/update',{method:'POST'});const d=await r.json();document.getElementById('pkg-list').innerHTML=`<pre style="font-size:11px;white-space:pre-wrap">${d.output}</pre>`;}
-    async function installPkg(){const n=document.getElementById('pkg-install').value.trim();if(!n)return;const r=await fetch('/api/packages/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})});const d=await r.json();alert(d.ok?'Installed!':'Error: '+d.output);}
+    async function installPkg(){const n=document.getElementById('pkg-install').value.trim();if(!n)return;const r=await fetch('/api/packages/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})});const d=await r.json();toast(d.ok?'Installed!':'Error: '+d.output, d.ok?'success':'error');}
 
     // === GPIO ===
     const HEADER=[{p:1,type:'3v3'},{p:2,type:'5v'},{p:3,type:'gpio',bcm:2},{p:4,type:'5v',note:'FAN+'},{p:5,type:'gpio',bcm:3},{p:6,type:'gnd',note:'FAN-'},{p:7,type:'gpio',bcm:4},{p:8,type:'gpio',bcm:14},{p:9,type:'gnd'},{p:10,type:'gpio',bcm:15},{p:11,type:'gpio',bcm:17},{p:12,type:'gpio',bcm:18},{p:13,type:'gpio',bcm:27},{p:14,type:'gnd'},{p:15,type:'gpio',bcm:22},{p:16,type:'gpio',bcm:23},{p:17,type:'3v3'},{p:18,type:'gpio',bcm:24},{p:19,type:'gpio',bcm:10},{p:20,type:'gnd'},{p:21,type:'gpio',bcm:9},{p:22,type:'gpio',bcm:25},{p:23,type:'gpio',bcm:11},{p:24,type:'gpio',bcm:8},{p:25,type:'gnd'},{p:26,type:'gpio',bcm:7},{p:27,type:'gpio',bcm:0},{p:28,type:'gpio',bcm:1},{p:29,type:'gpio',bcm:5},{p:30,type:'gnd'},{p:31,type:'gpio',bcm:6},{p:32,type:'gpio',bcm:12},{p:33,type:'gpio',bcm:13},{p:34,type:'gnd'},{p:35,type:'gpio',bcm:19},{p:36,type:'gpio',bcm:16},{p:37,type:'gpio',bcm:26},{p:38,type:'gpio',bcm:20},{p:39,type:'gnd'},{p:40,type:'gpio',bcm:21}];
@@ -599,7 +674,7 @@
     // === BACKUPS ===
     async function loadBackups(){const r=await fetch('/api/backup/');const d=await r.json();document.getElementById('backup-list').innerHTML=d.length?d.map(b=>`<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px"><div style="flex:1"><b>${b.name}</b><br><span style="color:var(--subtext);font-size:12px">${b.size_mb} MB — ${new Date(b.created*1000).toLocaleString()}</span></div><button class="btn btn-blue btn-small" onclick="restoreBackup('${b.name}')">Restore</button><button class="btn btn-red btn-small" onclick="delBackup('${b.name}')">Delete</button></div>`).join(''):'<p style="color:var(--subtext)">No backups</p>';}
     async function createBackup(){const r=await fetch('/api/backup/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({paths:['/home/egamgia']})});const d=await r.json();alert(d.ok?`Backup created: ${d.name} (${d.size_mb}MB)`:'Error: '+d.error);loadBackups();}
-    async function restoreBackup(n){if(confirm(`Restore ${n}?`)){await fetch('/api/backup/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})});alert('Restored!');}}
+    async function restoreBackup(n){if(confirm(`Restore ${n}?`)){await fetch('/api/backup/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})});toast('Restored!','success');}}
     async function delBackup(n){if(confirm('Delete?')){await fetch('/api/backup/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})});loadBackups();}}
     loadBackups();
 
@@ -609,7 +684,7 @@
         document.getElementById('ts-cards').innerHTML=`<div class="card"><label>Status</label><div class="value" style="font-size:16px;color:${st.installed?'var(--green)':'var(--red)'}">${st.installed?'Installed':'Not installed'}</div></div><div class="card"><label>Tailscale IP</label><div class="value" style="font-size:16px">${ip.ip||'N/A'}</div></div><div class="card"><label>Actions</label><div style="margin-top:8px;display:flex;gap:8px"><button class="btn btn-green btn-small" onclick="tsUp()">Connect</button><button class="btn btn-red btn-small" onclick="tsDown()">Disconnect</button></div></div>`;
         document.getElementById('ts-instructions').innerHTML=inst.steps.map((s,i)=>`<p style="margin:4px 0"><b>${i+1}.</b> <code>${s}</code></p>`).join('');
     }
-    async function tsUp(){const r=await fetch('/api/tailscale/up',{method:'POST'});const d=await r.json();alert(d.ok?'Connected!':d.output);loadTailscale();}
+    async function tsUp(){const r=await fetch('/api/tailscale/up',{method:'POST'});const d=await r.json();toast(d.ok?'Connected!':d.output, d.ok?'success':'error');loadTailscale();}
     async function tsDown(){await fetch('/api/tailscale/down',{method:'POST'});loadTailscale();}
     loadTailscale();
 
@@ -631,23 +706,23 @@
 
     // === TIMEZONE ===
     async function loadTZ(){const r=await fetch('/api/timezone/');const d=await r.json();document.getElementById('tz-cards').innerHTML=`<div class="card"><label>Current</label><div class="value" style="font-size:16px">${d.timezone}</div></div><div class="card"><label>NTP Sync</label><div class="value" style="font-size:16px;color:${d.ntp==='yes'?'var(--green)':'var(--red)'}">${d.ntp}</div></div>`;}
-    async function setTZ(){const tz=document.getElementById('tz-input').value;if(!tz)return;const r=await fetch('/api/timezone/set',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({timezone:tz})});const d=await r.json();alert(d.ok?'Done!':'Error: '+d.error);loadTZ();}
+    async function setTZ(){const tz=document.getElementById('tz-input').value;if(!tz)return;const r=await fetch('/api/timezone/set',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({timezone:tz})});const d=await r.json();toast(d.ok?'Done!':'Error: '+d.error, d.ok?'success':'error');loadTZ();}
     loadTZ();
 
     // === USERS ===
     async function loadUsers(){const r=await fetch('/api/users/');const d=await r.json();document.getElementById('users-list').innerHTML=d.map(u=>`<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px"><div style="flex:1"><b>${u.name}</b> (uid:${u.uid})<br><span style="color:var(--subtext);font-size:12px">${u.home} — ${u.shell}</span></div><button class="btn btn-blue btn-small" onclick="chPassModal('${u.name}')">Password</button></div>`).join('');}
     function createUserModal(){showModal(`<h3>Create User</h3><input id="nu-name" placeholder="Username"><input id="nu-pass" type="password" placeholder="Password"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doCreateUser()">Create</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
-    async function doCreateUser(){const r=await fetch('/api/users/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('nu-name').value,password:document.getElementById('nu-pass').value})});const d=await r.json();closeModal();alert(d.ok?'Created!':'Error: '+d.error);loadUsers();}
+    async function doCreateUser(){const r=await fetch('/api/users/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('nu-name').value,password:document.getElementById('nu-pass').value})});const d=await r.json();closeModal();toast(d.ok?'Created!':'Error: '+d.error, d.ok?'success':'error');loadUsers();}
     function chPassModal(u){showModal(`<h3>Change Password: ${u}</h3><input id="cp-pass" type="password" placeholder="New password"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doChPass('${u}')">Change</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
-    async function doChPass(u){await fetch('/api/users/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:document.getElementById('cp-pass').value})});closeModal();alert('Done!');}
+    async function doChPass(u){await fetch('/api/users/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:document.getElementById('cp-pass').value})});closeModal();toast('Done!','success');}
     loadUsers();
 
     // === VENVS ===
     async function loadVenvs(){const r=await fetch('/api/venv/');const d=await r.json();document.getElementById('venv-list').innerHTML=d.length?d.map(v=>`<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px"><div style="flex:1"><b>${v.name}</b><br><span style="color:var(--subtext);font-size:12px">${v.path}</span></div><button class="btn btn-blue btn-small" onclick="venvPkgs('${v.path}')">Packages</button></div>`).join(''):'<p style="color:var(--subtext)">No venvs found</p>';}
     function createVenvModal(){showModal(`<h3>Create Venv</h3><input id="venv-path" placeholder="/home/egamgia/myproject/.venv"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doCreateVenv()">Create</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
-    async function doCreateVenv(){const r=await fetch('/api/venv/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:document.getElementById('venv-path').value})});const d=await r.json();closeModal();alert(d.ok?'Created!':'Error: '+d.error);loadVenvs();}
+    async function doCreateVenv(){const r=await fetch('/api/venv/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:document.getElementById('venv-path').value})});const d=await r.json();closeModal();toast(d.ok?'Created!':'Error: '+d.error, d.ok?'success':'error');loadVenvs();}
     async function venvPkgs(path){const r=await fetch(`/api/venv/packages?venv_path=${encodeURIComponent(path)}`);const d=await r.json();showModal(`<h3>Packages</h3><div style="max-height:40vh;overflow:auto">${d.map(p=>`<div style="padding:4px 0;border-bottom:1px solid var(--overlay)">${p.name} <span style="color:var(--subtext)">${p.version}</span></div>`).join('')}</div><div style="margin-top:12px;display:flex;gap:8px"><input id="venv-pkg" placeholder="package name"><button class="btn btn-green btn-small" onclick="venvInstall('${path}')">Install</button></div><button class="btn btn-red" style="margin-top:8px" onclick="closeModal()">Close</button>`);}
-    async function venvInstall(path){const pkg=document.getElementById('venv-pkg').value;if(!pkg)return;const r=await fetch('/api/venv/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({venv_path:path,package:pkg})});const d=await r.json();alert(d.ok?'Installed!':d.output);}
+    async function venvInstall(path){const pkg=document.getElementById('venv-pkg').value;if(!pkg)return;const r=await fetch('/api/venv/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({venv_path:path,package:pkg})});const d=await r.json();toast(d.ok?'Installed!':d.output, d.ok?'success':'error');}
     loadVenvs();
 
     // === NGINX ===
@@ -663,7 +738,7 @@
     async function loadWol(){const r=await fetch('/api/wol/devices');const d=await r.json();document.getElementById('wol-devices').innerHTML=d.length?d.map(dev=>`<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px"><div style="flex:1"><b>${dev.name}</b><br><span style="color:var(--subtext);font-size:12px">${dev.mac} ${dev.ip?'('+dev.ip+')':''}</span></div><button class="btn btn-green" onclick="wolWake('${dev.mac}')">⚡ Wake</button><button class="btn btn-red btn-small" onclick="wolRemove('${dev.mac}')">✕</button></div>`).join(''):'<p style="color:var(--subtext)">No devices. Add one or scan the network.</p>';}
     function wolAddModal(){showModal(`<h3>Add WoL Device</h3><input id="wol-name" placeholder="Device name (e.g. My PC)"><input id="wol-mac" placeholder="MAC address (e.g. AA:BB:CC:DD:EE:FF)"><input id="wol-ip" placeholder="IP (optional)"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="wolAdd()">Add</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
     async function wolAdd(){await fetch('/api/wol/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:document.getElementById('wol-name').value,mac:document.getElementById('wol-mac').value,ip:document.getElementById('wol-ip').value})});closeModal();loadWol();}
-    async function wolWake(mac){const r=await fetch('/api/wol/wake',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mac})});const d=await r.json();alert(d.ok?'Magic packet sent!':'Error: '+d.error);}
+    async function wolWake(mac){const r=await fetch('/api/wol/wake',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mac})});const d=await r.json();toast(d.ok?'Magic packet sent!':'Error: '+d.error, d.ok?'success':'error');}
     async function wolRemove(mac){if(confirm('Remove?')){await fetch('/api/wol/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mac})});loadWol();}}
     async function wolScan(){document.getElementById('wol-scan').innerHTML='<p>Scanning...</p>';const r=await fetch('/api/wol/scan');const d=await r.json();document.getElementById('wol-scan').innerHTML='<label style="font-size:11px;color:var(--subtext)">Devices on network:</label>'+d.map(dev=>`<div style="padding:4px 0;display:flex;gap:12px;align-items:center"><span>${dev.ip}</span><code style="color:var(--subtext)">${dev.mac}</code><button class="btn btn-green btn-small" onclick="document.getElementById('wol-mac').value='${dev.mac}';document.getElementById('wol-ip').value='${dev.ip}';wolAddModal()">+ Add</button></div>`).join('');}
     loadWol();
@@ -671,8 +746,8 @@
     // === TELEGRAM ===
     async function loadTelegram(){const r=await fetch('/api/telegram/config');const d=await r.json();document.getElementById('tg-chatid').value=d.chat_id||'';document.getElementById('tg-enabled').checked=d.enabled;
     const alerts=d.alerts||{};document.getElementById('tg-alerts').innerHTML=Object.entries(alerts).map(([k,v])=>`<label style="display:block;margin:4px 0"><input type="checkbox" class="tg-alert-chk" data-key="${k}" ${v?'checked':''}> ${k.replace(/_/g,' ')}</label>`).join('');}
-    async function saveTelegram(){const alerts={};document.querySelectorAll('.tg-alert-chk').forEach(c=>{alerts[c.dataset.key]=c.checked;});await fetch('/api/telegram/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:document.getElementById('tg-token').value,chat_id:document.getElementById('tg-chatid').value,enabled:document.getElementById('tg-enabled').checked,alerts})});alert('Saved!');}
-    async function testTelegram(){const r=await fetch('/api/telegram/test',{method:'POST'});const d=await r.json();alert(d.ok?'Message sent! Check Telegram.':'Failed — check token and chat_id');}
+    async function saveTelegram(){const alerts={};document.querySelectorAll('.tg-alert-chk').forEach(c=>{alerts[c.dataset.key]=c.checked;});await fetch('/api/telegram/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:document.getElementById('tg-token').value,chat_id:document.getElementById('tg-chatid').value,enabled:document.getElementById('tg-enabled').checked,alerts})});toast('Saved!','success');}
+    async function testTelegram(){const r=await fetch('/api/telegram/test',{method:'POST'});const d=await r.json();toast(d.ok?'Message sent!':'Failed — check token/chat_id', d.ok?'success':'error');}
     loadTelegram();
 
     // === SENSORS ===
@@ -844,7 +919,7 @@
     async function fwEnable(){await fetch('/api/firewall/enable',{method:'POST'});loadFirewall();}
     async function fwDisable(){await fetch('/api/firewall/disable',{method:'POST'});loadFirewall();}
     function fwAddModal(){showModal(`<h3>Add Firewall Rule</h3><input id="fw-rule" placeholder="allow 80/tcp"><p style="color:var(--subtext);font-size:11px;margin:4px 0">Examples: allow 80/tcp, allow from 192.168.1.0/24, deny 23</p><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doFwAdd()">Add</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
-    async function doFwAdd(){const r=await fetch('/api/firewall/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rule:document.getElementById('fw-rule').value})});const d=await r.json();closeModal();alert(d.output||'Done');loadFirewall();}
+    async function doFwAdd(){const r=await fetch('/api/firewall/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rule:document.getElementById('fw-rule').value})});const d=await r.json();closeModal();toast(d.output||'Done','success');loadFirewall();}
     loadFirewall();
 
     // === AUTH LOGS ===
@@ -873,8 +948,8 @@
 
     // === OLLAMA page (keep for status/install) ===
     async function loadOllama(){const r=await fetch('/api/ollama/status');const d=await r.json();document.getElementById('ollama-status').innerHTML=d.running?`<span style="color:var(--green)">Ollama running — Models: ${d.models.join(', ')||'none'}</span>`:'<span style="color:var(--red)">Ollama not running</span>';}
-    async function ollamaInstall(){alert('Installing Ollama in background...');await fetch('/api/ollama/install',{method:'POST'});setTimeout(loadOllama,30000);}
-    async function ollamaPull(){const model=prompt('Model name:','qwen2.5:1.5b');if(!model)return;const r=await fetch('/api/ollama/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model})});const d=await r.json();alert(d.ok?'Pulled!':d.output);loadOllama();}
+    async function ollamaInstall(){toast('Installing Ollama...','info');await fetch('/api/ollama/install',{method:'POST'});setTimeout(loadOllama,30000);}
+    async function ollamaPull(){const model=prompt('Model name:','qwen2.5:1.5b');if(!model)return;const r=await fetch('/api/ollama/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model})});const d=await r.json();toast(d.ok?'Model pulled!':d.output, d.ok?'success':'error');loadOllama();}
     async function ollamaSend(){sendChat();}
     loadOllama();
 
@@ -893,5 +968,6 @@
     function closeModal(){document.getElementById('modal').classList.remove('show');}
     document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
     </script>
+    <div id="toast-container"></div>
 </body>
 </html>
