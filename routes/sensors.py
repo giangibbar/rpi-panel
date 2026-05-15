@@ -113,7 +113,46 @@ def save_sensors(sensors: list):
 @router.get("/catalog")
 async def catalog():
     """Get supported sensor types with wiring diagrams."""
-    return WIRING_DIAGRAMS
+    custom = load_custom_types()
+    return {**WIRING_DIAGRAMS, **custom}
+
+
+CUSTOM_TYPES_FILE = Path(__file__).parent.parent / "custom_sensor_types.json"
+
+
+def load_custom_types() -> dict:
+    if CUSTOM_TYPES_FILE.exists():
+        return json.loads(CUSTOM_TYPES_FILE.read_text())
+    return {}
+
+
+def save_custom_types(types: dict):
+    CUSTOM_TYPES_FILE.write_text(json.dumps(types, indent=2))
+
+
+class CustomSensorType(BaseModel):
+    key: str
+    description: str
+    pins: dict  # {"VCC": "3.3V (pin 1)", "DATA": "GPIO4 (pin 7)", ...}
+    notes: str = ""
+    protocol: str = "GPIO"
+    library: str = ""
+
+
+@router.post("/catalog/add")
+async def add_custom_type(body: CustomSensorType):
+    types = load_custom_types()
+    types[body.key] = body.model_dump(exclude={"key"})
+    save_custom_types(types)
+    return {"ok": True}
+
+
+@router.post("/catalog/remove")
+async def remove_custom_type(body: RemoveSensor):
+    types = load_custom_types()
+    types.pop(body.id, None)
+    save_custom_types(types)
+    return {"ok": True}
 
 
 @router.get("/")

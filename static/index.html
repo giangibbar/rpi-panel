@@ -786,26 +786,26 @@
         // Render RPi pins (clickable for assignment)
         const pins=[];for(let i=1;i<=40;i++){const color=([2,4].includes(i)?'#f38ba8':[1,17].includes(i)?'#fab387':[6,9,14,20,25,30,34,39].includes(i)?'#585b70':'#a6e3a1');pins.push(`<div id="pin-${i}" onclick="pinClicked(${i})" style="width:18px;height:18px;border-radius:50%;background:${color};border:2px solid rgba(255,255,255,0.2);cursor:pointer;transition:transform 0.1s" title="Pin ${i}"></div>`);}
         document.getElementById('rpi-pins-visual').innerHTML=pins.join('');
-        // Drop zone
+        // Drop zone — dropping opens register modal
         const board=document.getElementById('visual-board');
         board.ondragover=e=>e.preventDefault();
-        board.ondrop=e=>{e.preventDefault();const type=e.dataTransfer.getData('type');if(!type)return;const rect=board.getBoundingClientRect();placeSensor(type,e.clientX-rect.left,e.clientY-rect.top);};
-        // Load registered sensors and spread them around the Pi
-        const sr=await fetch('/api/sensors/');const registered=await sr.json();
-        const boardEl=document.getElementById('visual-board');
-        const bw=boardEl.offsetWidth||800,bh=boardEl.offsetHeight||500;
-        registered.forEach((s,i)=>{
-            const angle=(i/(registered.length||1))*Math.PI*2 - Math.PI/2;
-            const rx=bw/2 + Math.cos(angle)*180;
-            const ry=bh/2 + Math.sin(angle)*140;
-            placeSensor(s.type,rx,ry,s);
-        });
+        board.ondrop=e=>{e.preventDefault();const type=e.dataTransfer.getData('type');if(!type)return;
+            // Build free GPIO list
+            const usedPins=Object.keys(window._bcmUsage||{}).map(Number);
+            const allPins=[2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27];
+            const freePins=allPins.filter(p=>!usedPins.includes(p));
+            const opts=freePins.map(p=>`<option value="${p}">GPIO ${p}</option>`).join('');
+            showModal(`<h3>Register: ${type.replace(/_/g,' ')}</h3><input id="as-id" placeholder="Unique ID (e.g. living-room-temp)"><input id="as-name" placeholder="Display name" value="${type.replace(/_/g,' ')}"><label style="font-size:11px;color:var(--subtext);margin-top:4px">GPIO Pin (free only)</label><select id="as-gpio" style="width:100%;padding:8px;margin:6px 0;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)"><option value="">None</option>${opts}</select><input id="as-mqtt" placeholder="MQTT topic (optional)"><input id="as-serial" placeholder="Serial port (optional)"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doAddSensorFromBoard('${type}')">Register & Place</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);
+        };
+        // Load registered sensors and place them on board
+        await loadRegisteredOnBoard();
     }
 
     function placeSensor(type,x,y,existing){
         const id=existing?.id||type.toLowerCase()+'-'+Date.now();
         const idx=placedSensors.length;
-        const s=sensorCatalog[type];if(!s)return;
+        const s=sensorCatalog[type];
+        const sName=s?s.protocol:(existing?.name||type||'Unknown');
         const color=SENSOR_COLORS[type]||'#cdd6f4';
         // Default pin assignment from catalog
         const defaultPins=SENSOR_PIN_MAP[type]?[SENSOR_PIN_MAP[type]]:[];
@@ -813,7 +813,7 @@
         const div=document.createElement('div');
         div.id='placed-'+id;
         div.style.cssText=`position:absolute;left:${x}px;top:${y}px;background:${color};color:#1e1e2e;padding:8px 10px;border-radius:6px;font-size:11px;cursor:move;z-index:3;min-width:90px;box-shadow:0 2px 8px rgba(0,0,0,0.3)`;
-        div.innerHTML=`<b>${type.replace(/_/g,' ')}</b><div id="val-${id}" style="font-size:13px;font-weight:bold;margin-top:2px">--</div><div style="font-size:9px;opacity:0.7">${s.protocol}</div><div style="margin-top:4px;display:flex;gap:4px"><button onclick="event.stopPropagation();enablePinAssignment(${idx})" style="font-size:9px;padding:2px 6px;border:1px solid rgba(0,0,0,0.3);border-radius:3px;background:rgba(255,255,255,0.3);cursor:pointer">🔌</button><button onclick="event.stopPropagation();removePlacedSensor(${idx})" style="font-size:9px;padding:2px 6px;border:1px solid rgba(0,0,0,0.3);border-radius:3px;background:rgba(243,139,168,0.5);cursor:pointer">✕</button></div>`;
+        div.innerHTML=`<b>${existing?.name||type.replace(/_/g,' ')}</b><div id="val-${id}" style="font-size:13px;font-weight:bold;margin-top:2px">--</div><div style="font-size:9px;opacity:0.7">${s?s.protocol:''}</div><div style="margin-top:4px;display:flex;gap:4px"><button onclick="event.stopPropagation();enablePinAssignment(${idx})" style="font-size:9px;padding:2px 6px;border:1px solid rgba(0,0,0,0.3);border-radius:3px;background:rgba(255,255,255,0.3);cursor:pointer">🔌</button><button onclick="event.stopPropagation();removePlacedSensor(${idx})" style="font-size:9px;padding:2px 6px;border:1px solid rgba(0,0,0,0.3);border-radius:3px;background:rgba(243,139,168,0.5);cursor:pointer">✕</button></div>`;
         // Draggable
         div.onmousedown=e=>{if(e.target.tagName==='BUTTON')return;const ox=e.offsetX,oy=e.offsetY;const move=ev=>{div.style.left=(ev.clientX-div.parentElement.getBoundingClientRect().left-ox)+'px';div.style.top=(ev.clientY-div.parentElement.getBoundingClientRect().top-oy)+'px';drawWires();};const up=()=>{document.removeEventListener('mousemove',move);document.removeEventListener('mouseup',up);};document.addEventListener('mousemove',move);document.addEventListener('mouseup',up);};
         document.getElementById('placed-sensors').appendChild(div);
@@ -915,24 +915,80 @@
     }
 
     // Refresh sensor values every 5s
-    setInterval(()=>{placedSensors.forEach(s=>fetchSensorData(s.id));},5000);
+    setInterval(()=>{placedSensors.forEach(s=>{if(!s.removed)fetchSensorData(s.id);});},5000);
+
+    function reloadSensorBoard(){
+        document.getElementById('placed-sensors').innerHTML='';
+        placedSensors=[];pinAssignments={};
+        initSensorBoard();
+    }
+
+    async function doAddSensorFromBoard(type){
+        const id=document.getElementById('as-id').value;
+        const name=document.getElementById('as-name').value;
+        const gpio=document.getElementById('as-gpio').value?parseInt(document.getElementById('as-gpio').value):null;
+        const mqtt=document.getElementById('as-mqtt').value;
+        const serial=document.getElementById('as-serial').value;
+        if(!id){toast('ID is required','warning');return;}
+        await fetch('/api/sensors/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,name,type,gpio_pin:gpio,mqtt_topic:mqtt,serial_port:serial})});
+        closeModal();toast('Sensor registered','success');
+        loadSensorsManage();loadGPIO();
+        // Place on board
+        const boardEl=document.getElementById('visual-board');
+        const bw=boardEl.offsetWidth||800,bh=boardEl.offsetHeight||500;
+        placeSensor(type,100+Math.random()*(bw-300),60+Math.random()*(bh-200),{id,name,type,gpio_pin:gpio});
+    }
+
+    async function loadRegisteredOnBoard(){
+        const sr=await fetch('/api/sensors/');const registered=await sr.json();
+        if(!registered.length)return;
+        // Wait a tick for the board to have dimensions
+        await new Promise(r=>setTimeout(r,100));
+        const boardEl=document.getElementById('visual-board');
+        const bw=boardEl.offsetWidth||800,bh=boardEl.offsetHeight||500;
+        registered.forEach((s,i)=>{
+            const angle=(i/(registered.length||1))*Math.PI*2 - Math.PI/2;
+            const rx=Math.max(50,Math.min(bw-150, bw/2 + Math.cos(angle)*180));
+            const ry=Math.max(50,Math.min(bh-100, bh/2 + Math.sin(angle)*140));
+            placeSensor(s.type,rx,ry,s);
+        });
+    }
     // Redraw wires on resize
     window.addEventListener('resize',drawWires);
 
     async function loadSensorsDashboard(){initSensorBoard();}
+
+    // Re-init board when the sub-tab becomes visible (needs dimensions)
+    document.querySelector('[data-sub="sensors-live"]').addEventListener('click',()=>{
+        setTimeout(()=>{if(!placedSensors.length||placedSensors.every(s=>s.removed))reloadSensorBoard();},200);
+    });
     async function loadSensorsCatalog(){
         const r=await fetch('/api/sensors/catalog');const d=await r.json();
-        document.getElementById('sensors-catalog-list').innerHTML=Object.entries(d).map(([key,s])=>`<div class="card" style="cursor:pointer" onclick="showWiring('${key}')"><b>${key}</b><br><span style="color:var(--subtext);font-size:12px">${s.description}</span><br><span style="font-size:11px;color:var(--blue)">${s.protocol}</span></div>`).join('');
+        document.getElementById('sensors-catalog-list').innerHTML=`<div class="card" style="cursor:pointer;border:2px dashed var(--green);display:flex;align-items:center;justify-content:center" onclick="createCustomTypeModal()"><b style="color:var(--green)">+ Create Custom Type</b></div>`+Object.entries(d).map(([key,s])=>`<div class="card" style="cursor:pointer" onclick="showWiring('${key}')"><b>${key}</b><br><span style="color:var(--subtext);font-size:12px">${s.description}</span><br><span style="font-size:11px;color:var(--blue)">${s.protocol}</span></div>`).join('');
     }
+    function createCustomTypeModal(){showModal(`<h3>Create Custom Sensor Type</h3><input id="ct-key" placeholder="Type key (e.g. MY_SENSOR)"><input id="ct-desc" placeholder="Description"><input id="ct-protocol" placeholder="Protocol (GPIO, I2C, SPI, MQTT...)" value="GPIO"><input id="ct-library" placeholder="Library (optional)"><label style="font-size:11px;color:var(--subtext);margin-top:4px">Pin connections (one per line: PIN_NAME = where)</label><textarea id="ct-pins" style="min-height:100px" placeholder="VCC = 3.3V (pin 1)\nDATA = GPIO4 (pin 7)\nGND = GND (pin 9)"></textarea><input id="ct-notes" placeholder="Notes (optional)"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doCreateCustomType()">Create</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
+    async function doCreateCustomType(){
+        const key=document.getElementById('ct-key').value.trim();if(!key){toast('Key is required','warning');return;}
+        const pins={};document.getElementById('ct-pins').value.split('\n').forEach(l=>{const[k,v]=l.split('=');if(k&&v)pins[k.trim()]=v.trim();});
+        await fetch('/api/sensors/catalog/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key,description:document.getElementById('ct-desc').value,protocol:document.getElementById('ct-protocol').value,library:document.getElementById('ct-library').value,pins,notes:document.getElementById('ct-notes').value})});
+        closeModal();toast('Custom type created','success');loadSensorsCatalog();}
     async function showWiring(key){const r=await fetch('/api/sensors/catalog');const d=await r.json();const s=d[key];
     showModal(`<h3>${key}</h3><p style="color:var(--subtext)">${s.description}</p><div class="card" style="margin:12px 0"><label>Wiring</label><div style="margin-top:8px;font-size:13px">${Object.entries(s.pins).map(([pin,to])=>`<div style="padding:4px 0;display:flex;justify-content:space-between"><b>${pin}</b><span style="color:var(--green)">${to}</span></div>`).join('')}</div></div><div class="card"><label>Notes</label><p style="margin-top:4px;font-size:12px">${s.notes}</p></div><p style="margin-top:8px;font-size:12px">Library: <code>${s.library}</code></p><button class="btn btn-red" style="margin-top:12px" onclick="closeModal()">Close</button>`);}
     async function loadSensorsManage(){const r=await fetch('/api/sensors/');const d=await r.json();document.getElementById('sensors-registered').innerHTML=d.length?d.map(s=>`<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:12px"><div style="flex:1"><b>${s.name}</b> (${s.type})<br><span style="color:var(--subtext);font-size:12px">ID: ${s.id}${s.gpio_pin?' | GPIO'+s.gpio_pin:''}${s.mqtt_topic?' | MQTT: '+s.mqtt_topic:''}${s.serial_port?' | Serial: '+s.serial_port:''}</span></div><button class="btn btn-blue btn-small" onclick="editSensorModal('${s.id}')">Edit</button><button class="btn btn-red btn-small" onclick="removeSensor('${s.id}')">Remove</button></div>`).join(''):'<p style="color:var(--subtext)">No sensors registered</p>';}
     async function editSensorModal(id){const r=await fetch('/api/sensors/');const sensors=await r.json();const s=sensors.find(x=>x.id===id);if(!s)return;showModal(`<h3>Edit: ${s.name}</h3><input id="es-name" value="${s.name}" placeholder="Name"><input id="es-gpio" value="${s.gpio_pin||''}" placeholder="GPIO pin" type="number"><input id="es-mqtt" value="${s.mqtt_topic||''}" placeholder="MQTT topic"><input id="es-serial" value="${s.serial_port||''}" placeholder="Serial port"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doEditSensor('${s.id}','${s.type}')">Save</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);}
-    async function doEditSensor(id,type){await fetch('/api/sensors/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,type,name:document.getElementById('es-name').value,gpio_pin:document.getElementById('es-gpio').value?parseInt(document.getElementById('es-gpio').value):null,mqtt_topic:document.getElementById('es-mqtt').value,serial_port:document.getElementById('es-serial').value})});closeModal();toast('Sensor updated','success');loadSensorsManage();}
-    function addSensorModal(){showModal(`<h3>Register Sensor</h3><input id="as-id" placeholder="Unique ID (e.g. living-room-temp)"><input id="as-name" placeholder="Display name"><select id="as-type" style="width:100%;padding:8px;margin:6px 0;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)"><option value="">Select type...</option></select><input id="as-gpio" placeholder="GPIO pin (optional)" type="number"><input id="as-mqtt" placeholder="MQTT topic (e.g. sensors/esp1/temp)"><input id="as-serial" placeholder="Serial port (e.g. /dev/ttyUSB0)"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doAddSensor()">Register</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);
+    async function doEditSensor(id,type){await fetch('/api/sensors/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,type,name:document.getElementById('es-name').value,gpio_pin:document.getElementById('es-gpio').value?parseInt(document.getElementById('es-gpio').value):null,mqtt_topic:document.getElementById('es-mqtt').value,serial_port:document.getElementById('es-serial').value})});closeModal();toast('Sensor updated','success');loadSensorsManage();loadGPIO();}
+    function addSensorModal(){
+        const usedPins=Object.keys(window._bcmUsage||{}).map(Number);
+        const allPins=[2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27];
+        const freePins=allPins.filter(p=>!usedPins.includes(p));
+        const gpioOpts=freePins.map(p=>`<option value="${p}">GPIO ${p}</option>`).join('');
+        showModal(`<h3>Register Sensor</h3><input id="as-id" placeholder="Unique ID (e.g. living-room-temp)"><input id="as-name" placeholder="Display name"><select id="as-type" style="width:100%;padding:8px;margin:6px 0;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)"><option value="">Select type... (required)</option></select><label style="font-size:11px;color:var(--subtext)">GPIO Pin (free only)</label><select id="as-gpio" style="width:100%;padding:8px;margin:6px 0;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)"><option value="">None</option>${gpioOpts}</select><input id="as-mqtt" placeholder="MQTT topic (optional)"><input id="as-serial" placeholder="Serial port (optional)"><div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-green" onclick="doAddSensor()">Register</button><button class="btn btn-red" onclick="closeModal()">Cancel</button></div>`);
     fetch('/api/sensors/catalog').then(r=>r.json()).then(d=>{const sel=document.getElementById('as-type');Object.keys(d).forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=k+' — '+d[k].description;sel.appendChild(o);});});}
-    async function doAddSensor(){await fetch('/api/sensors/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:document.getElementById('as-id').value,name:document.getElementById('as-name').value,type:document.getElementById('as-type').value,gpio_pin:document.getElementById('as-gpio').value?parseInt(document.getElementById('as-gpio').value):null,mqtt_topic:document.getElementById('as-mqtt').value,serial_port:document.getElementById('as-serial').value})});closeModal();loadSensorsManage();}
-    async function removeSensor(id){if(confirm('Remove?')){await fetch('/api/sensors/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});loadSensorsManage();}}
+    async function doAddSensor(){
+        if(!document.getElementById('as-type').value){toast('Type is required','warning');return;}
+        if(!document.getElementById('as-id').value){toast('ID is required','warning');return;}
+        await fetch('/api/sensors/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:document.getElementById('as-id').value,name:document.getElementById('as-name').value,type:document.getElementById('as-type').value,gpio_pin:document.getElementById('as-gpio').value?parseInt(document.getElementById('as-gpio').value):null,mqtt_topic:document.getElementById('as-mqtt').value,serial_port:document.getElementById('as-serial').value})});closeModal();toast('Sensor registered','success');loadSensorsManage();loadGPIO();reloadSensorBoard();}
+    async function removeSensor(id){if(confirm('Remove?')){await fetch('/api/sensors/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});loadSensorsManage();loadGPIO();}}
     loadSensorsDashboard();loadSensorsCatalog();loadSensorsManage();
 
     function loadWokwi(){document.getElementById('wokwi-frame').src=document.getElementById('wokwi-project').value;}

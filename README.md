@@ -46,8 +46,8 @@ A complete web-based management panel for Raspberry Pi 4, built with **FastAPI +
 ### 🌡️ Sensors & IoT
 - **Real-time Board** — Visual drag & drop board with RPi + sensors, live data overlay, wire connections to pins
 - **Simulator** — Embedded Wokwi simulator (Arduino, ESP32, RPi Pico)
-- **Wiring Guide** — Catalog of supported sensors with pin diagrams
-- **Manage** — Register sensors (GPIO, I2C, MQTT, Serial)
+- **Wiring Guide** — Catalog of supported sensors with pin diagrams + create custom sensor types
+- **Manage** — Register sensors (GPIO, I2C, MQTT, Serial) with free-pin dropdown
 - **MQTT** — Built-in listener for ESP32/ESP8266 devices (`sensors/<id>/<metric>`)
 
 ### 🐍 Dev

@@ -26,13 +26,21 @@ async def list_pins():
     kernel_usage = {}
     try:
         r = subprocess.run(["sudo", "cat", "/sys/kernel/debug/gpio"], capture_output=True, text=True)
+        in_chip0 = False
         for line in r.stdout.split("\n"):
+            if "gpiochip0" in line:
+                in_chip0 = True
+                continue
+            if "gpiochip" in line and "gpiochip0" not in line:
+                in_chip0 = False
+                continue
+            if not in_chip0:
+                continue
             line = line.strip()
             if line.startswith("gpio-") and "|" in line:
                 parts = line.split()
                 gpio_num = int(parts[0].replace("gpio-", ""))
-                # Extract the consumer name (between | |)
-                consumer = line.split("|")[1].strip().rstrip(")") if "|" in line else ""
+                consumer = line.split("|")[1].split(")")[0].strip() if "|" in line else ""
                 direction = "out" if "out" in line else "in"
                 value = "hi" if "hi" in line else "lo"
                 if gpio_num <= 27 and consumer:
