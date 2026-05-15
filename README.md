@@ -61,9 +61,20 @@ A complete web-based management panel for Raspberry Pi 4, built with **FastAPI +
 - **Backups** — Create/restore/delete tar.gz backups
 
 ### 🤖 AI Chat
-- Floating chat panel (accessible from any page)
+- Floating chat panel (accessible from any page via 🤖 button in topbar)
 - Powered by Ollama (local LLM, no internet needed)
 - Model: qwen2.5:1.5b (fits in 4GB RAM)
+
+### 🎨 UI/UX
+- **Circular gauges** on dashboard (CPU, RAM, Temp, Disk) with color transitions
+- **Dark/Light theme** toggle (persisted in localStorage)
+- **Toast notifications** instead of browser alerts
+- **Breadcrumb navigation** in topbar
+- **CodeMirror editor** with syntax highlighting for file editing
+- **Smooth animations** and card hover effects
+- **Inter + JetBrains Mono** fonts
+- **Grouped navigation** — 8 categories with sub-tabs
+- **GPIO sensor labels** — shows what's connected to each pin
 
 ## 🚀 Installation
 
@@ -77,7 +88,7 @@ A complete web-based management panel for Raspberry Pi 4, built with **FastAPI +
 
 ```bash
 # Clone
-git clone https://github.com/YOUR_USER/rpi-panel.git
+git clone https://github.com/giangibbar/rpi-panel.git
 cd rpi-panel
 
 # Setup
