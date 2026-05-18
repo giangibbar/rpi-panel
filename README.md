@@ -75,6 +75,7 @@ A complete web-based management panel for Raspberry Pi 4, built with **FastAPI +
 - **Inter + JetBrains Mono** fonts
 - **Grouped navigation** — 8 categories with sub-tabs
 - **GPIO sensor labels** — shows what's connected to each pin
+- **Quick links** — sidebar shortcut to other apps (AiFun on port 3001)
 
 ## 🚀 Installation
 
