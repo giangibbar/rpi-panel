@@ -270,6 +270,7 @@
                 <button class="sub-tab" data-sub="nginx-page">Nginx</button>
                 <button class="sub-tab" data-sub="tailscale-page">Tailscale</button>
                 <button class="sub-tab" data-sub="wol-page">Wake-on-LAN</button>
+                <button class="sub-tab" data-sub="speedtest-page">Speedtest</button>
             </div>
             <div class="sub-content active" id="network">
                 <div class="cards" id="net-cards"></div>
@@ -291,6 +292,14 @@
                 <div style="margin-bottom:12px;display:flex;gap:8px"><button class="btn btn-green" onclick="wolAddModal()">+ Add Device</button><button class="btn btn-blue" onclick="wolScan()">Scan Network</button></div>
                 <div id="wol-devices"></div>
                 <div id="wol-scan" style="margin-top:12px"></div>
+            </div>
+            <div class="sub-content" id="speedtest-page">
+                <div class="card" style="margin-bottom:10px;display:flex;align-items:center;gap:12px">
+                    <button class="btn btn-green" onclick="runSpeedtest()">▶️ Run Now</button>
+                    <span id="speedtest-status" style="font-size:12px;color:var(--subtext)">Runs every hour automatically</span>
+                </div>
+                <div class="cards" id="speedtest-latest" style="margin-bottom:12px"></div>
+                <div class="card" style="flex:1"><canvas id="speedtest-chart" height="200"></canvas></div>
             </div>
         </div>
 
@@ -318,6 +327,7 @@
             <div class="sub-tabs">
                 <button class="sub-tab active" data-sub="venv-page">Venvs</button>
                 <button class="sub-tab" data-sub="ollama-page">Ollama Chat</button>
+                <button class="sub-tab" data-sub="webhooks-page">Webhooks</button>
             </div>
             <div class="sub-content active" id="venv-page">
                 <div style="margin-bottom:12px"><button class="btn btn-green" onclick="createVenvModal()">+ Create Venv</button></div>
@@ -326,6 +336,17 @@
             <div class="sub-content" id="ollama-page">
                 <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center"><span id="ollama-status"></span><button class="btn btn-green btn-small" onclick="ollamaInstall()">Install</button><button class="btn btn-blue btn-small" onclick="ollamaPull()">Pull Model</button></div>
                 <div class="card" style="flex:1;display:flex;flex-direction:column"><div id="ollama-chat" style="flex:1;overflow:auto;margin-bottom:8px;padding:8px;font-size:13px"></div><div style="display:flex;gap:8px"><input id="ollama-input" placeholder="Ask something..." style="flex:1;padding:8px;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)" onkeydown="if(event.key==='Enter')ollamaSend()"><button class="btn btn-green" onclick="ollamaSend()">Send</button></div></div>
+            </div>
+            <div class="sub-content" id="webhooks-page">
+                <div class="card" style="margin-bottom:10px">
+                    <div style="display:flex;justify-content:space-between;align-items:center"><label>Configured Hooks</label><button class="btn btn-green btn-small" onclick="webhookAddModal()">+ Add</button></div>
+                    <div id="webhooks-list" style="margin-top:8px"></div>
+                    <div style="margin-top:12px;padding:8px;background:var(--bg);border-radius:4px;font-size:11px;color:var(--subtext)">
+                        <b>GitHub Webhook URL:</b> <code>http://192.168.1.26:8080/api/webhooks/github</code><br>
+                        Set this in your repo → Settings → Webhooks → Payload URL
+                    </div>
+                </div>
+                <div class="card"><label>Event Log</label><div id="webhooks-log" style="margin-top:8px;max-height:300px;overflow-y:auto"></div></div>
             </div>
         </div>
 
@@ -1156,6 +1177,60 @@
     async function doUpdateNote(id){await fetch('/api/notes/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,title:document.getElementById('note-title').value,content:document.getElementById('note-content').value})});closeModal();loadNotes();}
     async function doDeleteNote(id){if(confirm('Delete?')){await fetch('/api/notes/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});closeModal();loadNotes();}}
     loadNotes();
+
+    // === SPEEDTEST ===
+    let _speedChart=null;
+    async function loadSpeedtest(){
+        const r=await fetch('/api/speedtest/');const data=await r.json();
+        // Latest card
+        const latest=data.length?data[data.length-1]:null;
+        document.getElementById('speedtest-latest').innerHTML=latest?`<div class="card"><label>⬇️ Download</label><div style="font-size:24px;font-weight:bold;color:var(--green)">${latest.download} Mbps</div></div><div class="card"><label>⬆️ Upload</label><div style="font-size:24px;font-weight:bold;color:var(--blue)">${latest.upload} Mbps</div></div><div class="card"><label>🏓 Ping</label><div style="font-size:24px;font-weight:bold;color:var(--yellow)">${latest.ping} ms</div></div>`:'<div class="card" style="color:var(--subtext)">No data yet — click Run Now</div>';
+        // Chart
+        if(data.length>1){
+            const labels=data.map(d=>new Date(d.ts*1000).toLocaleDateString()+' '+new Date(d.ts*1000).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+            const ctx=document.getElementById('speedtest-chart');
+            if(_speedChart)_speedChart.destroy();
+            _speedChart=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Download (Mbps)',data:data.map(d=>d.download),borderColor:'#a6e3a1',tension:0.3},{label:'Upload (Mbps)',data:data.map(d=>d.upload),borderColor:'#89b4fa',tension:0.3},{label:'Ping (ms)',data:data.map(d=>d.ping),borderColor:'#f9e2af',tension:0.3,yAxisID:'ping'}]},options:{responsive:true,scales:{y:{beginAtZero:true},ping:{position:'right',beginAtZero:true}}}});
+        }
+    }
+    async function runSpeedtest(){
+        document.getElementById('speedtest-status').textContent='⏳ Running speedtest...';
+        const r=await fetch('/api/speedtest/run',{method:'POST'});const d=await r.json();
+        document.getElementById('speedtest-status').textContent=d.ok?'✅ Done!':'❌ Failed';
+        if(d.ok)loadSpeedtest();
+    }
+
+    // === WEBHOOKS ===
+    async function loadWebhooks(){
+        const r=await fetch('/api/webhooks/');const hooks=await r.json();
+        document.getElementById('webhooks-list').innerHTML=hooks.map(h=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--overlay)"><span style="color:${h.enabled?'var(--green)':'var(--subtext)'};font-size:18px">${h.enabled?'●':'○'}</span><span style="flex:1;font-family:monospace;font-size:12px">${h.repo}</span><span style="font-size:11px;color:var(--subtext)">${h.action.split('/').pop()}</span><button onclick="removeWebhook('${h.id}')" style="background:var(--red);color:#fff;border:none;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer">✕</button></div>`).join('')||'<div style="color:var(--subtext);font-size:12px">No hooks configured</div>';
+        const r2=await fetch('/api/webhooks/logs');const logs=await r2.json();
+        document.getElementById('webhooks-log').innerHTML=logs.reverse().map(l=>`<div style="padding:4px 0;border-bottom:1px solid var(--overlay);font-size:11px"><span style="color:var(--subtext)">${new Date(l.ts*1000).toLocaleString()}</span> <span style="color:var(--blue)">${l.repo}</span> <span style="color:${l.status==='ok'?'var(--green)':'var(--red)'}">${l.status}</span></div>`).join('')||'<div style="color:var(--subtext);font-size:12px">No events yet</div>';
+    }
+    async function removeWebhook(id){
+        await fetch('/api/webhooks/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+        loadWebhooks();
+    }
+    function webhookAddModal(){
+        showModal(`<h3>Add Webhook</h3><input id="wh-id" placeholder="ID (e.g. deploy-myapp)" style="width:100%;padding:8px;margin:6px 0;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)"><input id="wh-repo" placeholder="owner/repo (e.g. giangibbar/myapp)" style="width:100%;padding:8px;margin:6px 0;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)"><input id="wh-action" placeholder="Action (e.g. /home/egamgia/deploy.sh myapp)" style="width:100%;padding:8px;margin:6px 0;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)"><input id="wh-secret" placeholder="Secret (optional)" style="width:100%;padding:8px;margin:6px 0;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)"><button class="btn btn-green" onclick="webhookAdd()" style="margin-top:8px;width:100%">Add</button>`);
+    }
+    async function webhookAdd(){
+        const id=document.getElementById('wh-id').value.trim();
+        const repo=document.getElementById('wh-repo').value.trim();
+        const action=document.getElementById('wh-action').value.trim();
+        const secret=document.getElementById('wh-secret').value.trim();
+        if(!id||!repo||!action)return;
+        await fetch('/api/webhooks/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,repo,action,secret,enabled:true})});
+        closeModal();loadWebhooks();
+    }
+
+    // Init on sub-tab click
+    document.querySelectorAll('.sub-tab').forEach(t=>{
+        t.addEventListener('click',()=>{
+            if(t.dataset.sub==='speedtest-page')loadSpeedtest();
+            if(t.dataset.sub==='webhooks-page')loadWebhooks();
+        });
+    });
 
     // === GIT ===
     let _gitCurrentProject=null;

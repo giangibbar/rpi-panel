@@ -38,6 +38,8 @@ from routes.sensors import router as sensors_router
 from routes.exec import router as exec_router
 from routes.mqtt import router as mqtt_router
 from routes.git import router as git_router
+from routes.speedtest import router as speedtest_router
+from routes.webhooks import router as webhooks_router
 
 app = FastAPI()
 
@@ -92,6 +94,8 @@ app.include_router(sensors_router, prefix="/api/sensors")
 app.include_router(exec_router, prefix="/api/exec")
 app.include_router(mqtt_router, prefix="/api/mqtt")
 app.include_router(git_router, prefix="/api/git")
+app.include_router(speedtest_router, prefix="/api/speedtest")
+app.include_router(webhooks_router, prefix="/api/webhooks")
 
 
 @app.post("/login")
