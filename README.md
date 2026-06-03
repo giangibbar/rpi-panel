@@ -50,6 +50,13 @@ A complete web-based management panel for Raspberry Pi 4, built with **FastAPI +
 - **Manage** — Register sensors (GPIO, I2C, MQTT, Serial) with free-pin dropdown
 - **MQTT** — Built-in listener for ESP32/ESP8266 devices (`sensors/<id>/<metric>`)
 
+### 📡 MQTT
+- **Monitor** — Live feed of all messages with topic filter (click a topic to isolate), publisher tracking
+- **Topics sidebar** — All observed topics with message count, last value, and connected subscribers
+- **Publish** — Dropdown topic selector + multi-topic publish, custom topics, retain flag
+- **WebSocket** — Real-time message stream without polling
+- **Broker status** — Mosquitto active/inactive, connected clients count
+
 ### 🐍 Dev
 - **Venvs** — List Python venvs (version, size, packages), install/upgrade/freeze, run scripts, inline code editor
 - **Ollama** — Status, install, pull models
@@ -193,7 +200,9 @@ rpi-panel/
     ├── notes.py         # Notes/todo
     ├── wol.py           # Wake-on-LAN
     ├── telegram.py      # Telegram notifications
-    └── sensors.py       # IoT sensors + MQTT
+    ├── sensors.py       # IoT sensors + MQTT bridge
+    ├── mqtt.py          # MQTT broker management + live WebSocket
+    └── exec.py          # Remote command execution API
 ```
 
 ## 🔒 Security
