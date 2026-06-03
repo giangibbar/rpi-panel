@@ -150,6 +150,7 @@
         <button class="nav-btn" data-page="hardware-page">🔌 Hardware</button>
         <button class="nav-btn" data-page="sensors-page">🌡️ Sensors</button>
         <button class="nav-btn" data-page="mqtt-page">📡 MQTT</button>
+        <button class="nav-btn" data-page="git-page">🔀 Git</button>
         <button class="nav-btn" data-page="dev-page">🐍 Dev</button>
         <button class="nav-btn" data-page="security-page">🔑 Security</button>
         <div style="border-top:1px solid var(--overlay);margin-top:8px;padding-top:8px"><label style="font-size:10px;color:var(--subtext);padding:0 12px">APPS</label><a href="http://192.168.1.26:3001" target="_blank" class="nav-btn" style="text-decoration:none;display:block">🎉 AiFun</a>
@@ -455,6 +456,44 @@
                 </div>
             </div>
         </div>
+
+    <!-- Git Page -->
+        <div class="page" id="git-page">
+            <div style="display:flex;gap:12px;height:calc(100vh - 80px)">
+                <!-- Projects sidebar -->
+                <div style="width:220px;overflow-y:auto;background:var(--surface);border-radius:8px;padding:10px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                        <label style="font-size:11px;color:var(--subtext)">PROJECTS</label>
+                        <button class="btn btn-small" style="background:var(--overlay);color:var(--text);padding:3px 8px;font-size:10px" onclick="gitAddProjectModal()">+</button>
+                    </div>
+                    <div id="git-projects-list"></div>
+                </div>
+                <!-- Main area -->
+                <div style="flex:1;display:flex;flex-direction:column;gap:10px;overflow:hidden">
+                    <!-- Changed files -->
+                    <div class="card" style="flex:1;overflow-y:auto">
+                        <label id="git-project-title" style="font-size:13px">Select a project</label>
+                        <div id="git-files-list" style="margin-top:8px"></div>
+                    </div>
+                    <!-- Diff viewer -->
+                    <div class="card" style="flex:2;overflow-y:auto;display:none" id="git-diff-panel">
+                        <div style="display:flex;justify-content:space-between;align-items:center">
+                            <label id="git-diff-filename" style="font-size:12px;color:var(--blue)"></label>
+                            <button class="btn btn-small" style="background:var(--overlay);color:var(--text);padding:3px 8px" onclick="document.getElementById('git-diff-panel').style.display='none'">✕</button>
+                        </div>
+                        <pre id="git-diff-content" style="font-size:11px;margin-top:8px;white-space:pre-wrap;line-height:1.5;overflow-y:auto"></pre>
+                    </div>
+                    <!-- Actions -->
+                    <div class="card" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px">
+                        <input id="git-commit-msg" placeholder="Commit message..." style="flex:1;padding:10px;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text);font-size:13px">
+                        <button class="btn btn-green" onclick="gitPush()" style="padding:10px 20px">🚀 Push</button>
+                        <button class="btn btn-small" style="background:var(--blue);color:#1e1e2e;padding:8px 12px" onclick="gitPull()">📥 Pull</button>
+                        <button class="btn btn-small" style="background:var(--yellow);color:#1e1e2e;padding:8px 12px" onclick="gitStash()">📦 Stash</button>
+                        <button class="btn btn-small" style="background:var(--red);color:#fff;padding:8px 12px" onclick="gitDiscardAll()">🗑️ Discard All</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Chat panel -->
@@ -484,7 +523,7 @@
     const pageNames={
         'monitor-page':'📊 Monitor','terminal-page':'💻 Terminal','system-page':'⚙️ System',
         'files-page':'📁 Files','network-page':'🌐 Network','hardware-page':'🔌 Hardware',
-        'sensors-page':'🌡️ Sensors','mqtt-page':'📡 MQTT','dev-page':'🐍 Dev','security-page':'🔑 Security'
+        'sensors-page':'🌡️ Sensors','mqtt-page':'📡 MQTT','git-page':'🔀 Git','dev-page':'🐍 Dev','security-page':'🔑 Security'
     };
     function updateBreadcrumb(page,sub){
         const name=pageNames[page]||page;
@@ -1117,6 +1156,118 @@
     async function doUpdateNote(id){await fetch('/api/notes/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,title:document.getElementById('note-title').value,content:document.getElementById('note-content').value})});closeModal();loadNotes();}
     async function doDeleteNote(id){if(confirm('Delete?')){await fetch('/api/notes/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});closeModal();loadNotes();}}
     loadNotes();
+
+    // === GIT ===
+    let _gitCurrentProject=null;
+    async function loadGitProjects(){
+        const r=await fetch('/api/git/projects');const projects=await r.json();
+        document.getElementById('git-projects-list').innerHTML=projects.map(p=>`<div data-name="${p.name}" onclick="gitSelectProject('${p.name}')" style="padding:8px;margin-bottom:4px;border-radius:6px;cursor:pointer;background:${_gitCurrentProject===p.name?'var(--overlay)':'var(--bg)'};border:1px solid var(--overlay)" onmouseover="this.style.background='var(--overlay)'" onmouseout="if(_gitCurrentProject!=='${p.name}')this.style.background='var(--bg)'"><div style="font-size:13px;font-weight:bold;color:var(--text)">${p.name}</div><div style="font-size:10px;color:var(--subtext);margin-top:2px">${p.status==='missing'?'❌ missing':p.changed_files?'<span style=\"color:var(--yellow)\">● '+p.changed_files+' modified</span>':'<span style=\"color:var(--green)\">✓ clean</span>'}</div></div>`).join('');
+    }
+    async function gitSelectProject(name){
+        _gitCurrentProject=name;
+        document.getElementById('git-project-title').textContent=name;
+        loadGitProjects();
+        const r=await fetch('/api/git/status/'+name);const d=await r.json();
+        if(!d.files||!d.files.length){
+            document.getElementById('git-files-list').innerHTML='<div style="color:var(--green);font-size:13px;padding:8px">✓ No changes</div>';
+            return;
+        }
+        document.getElementById('git-files-list').innerHTML=d.files.map(f=>{
+            const color=f.status==='?'||f.status==='??'?'var(--green)':f.status==='M'?'var(--yellow)':'var(--red)';
+            const label=f.status==='??'?'NEW':f.status==='M'?'MOD':f.status==='D'?'DEL':f.status;
+            return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--overlay)"><input type="checkbox" class="git-file-check" data-file="${f.file}" checked style="width:16px;height:16px"><span style="color:${color};font-size:10px;font-weight:bold;min-width:30px">${label}</span><span class="git-file-link" data-project="${name}" data-file="${f.file}" style="flex:1;font-family:monospace;font-size:12px;cursor:pointer;color:var(--text)">${f.file}</span><button class="git-discard-btn" data-project="${name}" data-file="${f.file}" style="background:var(--red);color:#fff;padding:2px 8px;font-size:10px;border:none;border-radius:4px;cursor:pointer">✕</button></div>`;
+        }).join('');
+        document.querySelectorAll('.git-file-link').forEach(el=>el.onclick=()=>gitShowDiff(el.dataset.project,el.dataset.file));
+        document.querySelectorAll('.git-discard-btn').forEach(el=>el.onclick=()=>gitDiscardFile(el.dataset.project,el.dataset.file));
+    }
+    async function gitShowDiff(name,file){
+        const r=await fetch('/api/git/diff/'+name+'/'+encodeURIComponent(file));const d=await r.json();
+        document.getElementById('git-diff-panel').style.display='block';
+        document.getElementById('git-diff-filename').textContent=file;
+        const pre=document.getElementById('git-diff-content');
+        if(!d.diff){pre.innerHTML='<span style="color:var(--subtext)">No diff available</span>';return;}
+        // Parse unified diff into side-by-side
+        const lines=d.diff.split('\n');
+        let html='<table style="width:100%;border-collapse:collapse;font-size:11px;font-family:monospace">';
+        let oldNum=0,newNum=0;
+        for(const line of lines){
+            if(line.startsWith('@@')){
+                const m=line.match(/@@ -(\d+)/);if(m)oldNum=parseInt(m[1])-1;
+                const m2=line.match(/\+(\d+)/);if(m2)newNum=parseInt(m2[1])-1;
+                html+=`<tr><td colspan="4" style="background:var(--surface);color:var(--blue);padding:4px 8px;font-size:10px">${line.replace(/</g,'&lt;')}</td></tr>`;
+            } else if(line.startsWith('---')||line.startsWith('+++')||line.startsWith('diff ')||line.startsWith('index ')){
+                continue;
+            } else if(line.startsWith('-')){
+                oldNum++;
+                html+=`<tr><td style="color:var(--subtext);text-align:right;padding:0 6px;user-select:none;width:30px;font-size:10px">${oldNum}</td><td style="background:rgba(244,67,54,0.15);color:var(--red);padding:2px 8px;white-space:pre-wrap;word-break:break-all" colspan="3">${line.substring(1).replace(/</g,'&lt;')||' '}</td></tr>`;
+            } else if(line.startsWith('+')){
+                newNum++;
+                html+=`<tr><td style="color:var(--subtext);text-align:right;padding:0 6px;user-select:none;width:30px;font-size:10px">${newNum}</td><td style="background:rgba(76,175,80,0.15);color:var(--green);padding:2px 8px;white-space:pre-wrap;word-break:break-all" colspan="3">${line.substring(1).replace(/</g,'&lt;')||' '}</td></tr>`;
+            } else {
+                oldNum++;newNum++;
+                html+=`<tr><td style="color:var(--subtext);text-align:right;padding:0 6px;user-select:none;width:30px;font-size:10px">${oldNum}</td><td style="padding:2px 8px;white-space:pre-wrap;word-break:break-all;color:var(--text)" colspan="3">${line.substring(1).replace(/</g,'&lt;')||' '}</td></tr>`;
+            }
+        }
+        html+='</table>';
+        pre.innerHTML=html;
+    }
+    async function gitPush(){
+        const msg=document.getElementById('git-commit-msg').value.trim();
+        if(!msg){showToast('Scrivi un commit message','error');return;}
+        if(!_gitCurrentProject){showToast('Seleziona un progetto','error');return;}
+        const files=[...document.querySelectorAll('.git-file-check:checked')].map(el=>el.dataset.file);
+        if(!files.length){showToast('Seleziona almeno un file','error');return;}
+        const r=await fetch('/api/git/push',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:_gitCurrentProject,message:msg,files})});
+        const d=await r.json();
+        if(d.ok){showToast('✅ Pushed '+_gitCurrentProject,'success');document.getElementById('git-commit-msg').value='';gitSelectProject(_gitCurrentProject);}
+        else showToast('❌ '+d.output,'error');
+    }
+    async function gitPull(){
+        if(!_gitCurrentProject){showToast('Seleziona un progetto','error');return;}
+        const r=await fetch('/api/git/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:_gitCurrentProject})});
+        const d=await r.json();
+        if(d.up_to_date){showToast('✓ Already up to date','success');return;}
+        if(d.ok&&d.files.length){
+            let html='<h3>📥 Pull: '+_gitCurrentProject+'</h3><div style="margin-top:10px;max-height:300px;overflow-y:auto">';
+            d.files.forEach(f=>{html+=`<div style="display:flex;gap:8px;padding:4px 0;font-family:monospace;font-size:12px"><span style="color:var(--blue);flex:1">${f.file}</span><span style="color:var(--subtext)">${f.change}</span></div>`;});
+            html+='</div>';
+            showModal(html);
+        } else if(d.ok){showToast('✓ Pulled, no changes','success');}
+        else showToast('❌ '+d.output,'error');
+        gitSelectProject(_gitCurrentProject);
+    }
+    async function gitStash(){
+        if(!_gitCurrentProject)return;
+        await fetch('/api/git/stash',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:_gitCurrentProject})});
+        showToast('📦 Stashed '+_gitCurrentProject,'success');
+        gitSelectProject(_gitCurrentProject);
+    }
+    async function gitDiscardAll(){
+        if(!_gitCurrentProject)return;
+        if(!confirm('Discard ALL changes in '+_gitCurrentProject+'?'))return;
+        await fetch('/api/git/discard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:_gitCurrentProject})});
+        showToast('🗑️ Discarded all','success');
+        gitSelectProject(_gitCurrentProject);
+    }
+    async function gitDiscardFile(name,file){
+        if(!confirm('Discard changes in '+file+'?'))return;
+        await fetch('/api/git/discard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,file})});
+        gitSelectProject(name);
+    }
+    function gitAddProjectModal(){
+        showModal(`<h3>Add Git Project</h3><input id="gp-name" placeholder="Name" style="width:100%;padding:8px;margin:6px 0;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)"><input id="gp-path" placeholder="Path (e.g. /home/egamgia/myproject)" style="width:100%;padding:8px;margin:6px 0;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)"><input id="gp-branch" placeholder="Branch (default: main)" value="main" style="width:100%;padding:8px;margin:6px 0;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text)"><button class="btn btn-green" onclick="gitAddProject()" style="margin-top:8px;width:100%">Add</button>`);
+    }
+    async function gitAddProject(){
+        const name=document.getElementById('gp-name').value.trim();
+        const path=document.getElementById('gp-path').value.trim();
+        const branch=document.getElementById('gp-branch').value.trim()||'main';
+        if(!name||!path)return;
+        await fetch('/api/git/projects/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,path,branch})});
+        closeModal();loadGitProjects();
+    }
+    // Init git on page show
+    const _gitNav=document.querySelectorAll('.nav-btn[data-page]');
+    _gitNav.forEach(b=>b.addEventListener('click',()=>{if(b.dataset.page==='git-page')loadGitProjects();}));
 
     // === MQTT ===
     let mqttWs=null,mqttMsgCount=0,mqttFilter=null;

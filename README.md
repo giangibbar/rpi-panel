@@ -57,6 +57,15 @@ A complete web-based management panel for Raspberry Pi 4, built with **FastAPI +
 - **WebSocket** — Real-time message stream without polling
 - **Broker status** — Mosquitto active/inactive, connected clients count
 
+### 🔀 Git
+- **Projects sidebar** — All tracked repos with status (clean/modified count)
+- **File list** — Checkboxes to select which files to commit, status labels (NEW/MOD/DEL)
+- **Diff viewer** — VS Code-style colored diff with line numbers, red/green highlighting
+- **Selective push** — Commit only checked files with custom message
+- **Pull** — Fetch latest changes, shows modal with modified/added files
+- **Stash / Discard** — Per-file or bulk discard, stash for later
+- **Add projects** — Register any git repo on the Pi
+
 ### 🐍 Dev
 - **Venvs** — List Python venvs (version, size, packages), install/upgrade/freeze, run scripts, inline code editor
 - **Ollama** — Status, install, pull models
@@ -202,6 +211,7 @@ rpi-panel/
     ├── telegram.py      # Telegram notifications
     ├── sensors.py       # IoT sensors + MQTT bridge
     ├── mqtt.py          # MQTT broker management + live WebSocket
+    ├── git.py           # Git project management (status, diff, push, pull)
     └── exec.py          # Remote command execution API
 ```
 

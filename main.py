@@ -37,6 +37,7 @@ from routes.telegram import router as telegram_router
 from routes.sensors import router as sensors_router
 from routes.exec import router as exec_router
 from routes.mqtt import router as mqtt_router
+from routes.git import router as git_router
 
 app = FastAPI()
 
@@ -90,6 +91,7 @@ app.include_router(telegram_router, prefix="/api/telegram")
 app.include_router(sensors_router, prefix="/api/sensors")
 app.include_router(exec_router, prefix="/api/exec")
 app.include_router(mqtt_router, prefix="/api/mqtt")
+app.include_router(git_router, prefix="/api/git")
 
 
 @app.post("/login")
