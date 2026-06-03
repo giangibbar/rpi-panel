@@ -287,6 +287,7 @@ def _mqtt_listener():
 
     try:
         client = mqtt.Client()
+        client.username_pw_set("homebot", "casa2026")
         client.on_message = on_message
         client.connect("localhost", 1883, 60)
         client.subscribe("sensors/#")
