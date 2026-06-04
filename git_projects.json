@@ -1,6 +1,6 @@
 [
-  {"name": "web-terminal", "path": "/home/egamgia/web-terminal", "branch": "main"},
-  {"name": "RISIKO", "path": "/home/egamgia/RISIKO", "branch": "master"},
-  {"name": "AiFun", "path": "/home/egamgia/AiFun", "branch": "main"},
-  {"name": "FantAI", "path": "/home/egamgia/FantAI", "branch": "main"}
+  {"name": "web-terminal", "path": "/home/egamgia/WORKSPACE/web-terminal", "branch": "main"},
+  {"name": "RISIKO", "path": "/home/egamgia/WORKSPACE/RISIKO", "branch": "master"},
+  {"name": "AiFun", "path": "/home/egamgia/WORKSPACE/AiFun", "branch": "main"},
+  {"name": "FantAI", "path": "/home/egamgia/WORKSPACE/FantAI", "branch": "main"}
 ]

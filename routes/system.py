@@ -4,6 +4,8 @@ from fastapi import APIRouter
 
 router = APIRouter()
 
+MONITORED_SERVICES = ["web-terminal", "aifun", "fantai", "risiko", "ollama", "nginx", "mosquitto", "tailscaled"]
+
 
 @router.get("/stats")
 async def stats():
@@ -47,6 +49,12 @@ async def stats():
         p = line.split(None, 10)
         procs.append({"user": p[0], "pid": p[1], "cpu": p[2], "mem": p[3], "cmd": p[10] if len(p) > 10 else ""})
 
+    # Services status
+    services = []
+    for svc in MONITORED_SERVICES:
+        r = subprocess.run(["systemctl", "is-active", svc], capture_output=True, text=True)
+        services.append({"name": svc, "active": r.stdout.strip() == "active"})
+
     return {
         "cpu_idle": idle,
         "cpu_total": total,
@@ -60,4 +68,45 @@ async def stats():
         "uptime_sec": int(uptime_sec),
         "load": load,
         "processes": procs,
+        "services": services,
     }
+
+
+@router.get("/connections")
+async def connections():
+    """Active network connections and listening ports."""
+    # Listening ports
+    r = subprocess.run(["ss", "-tlnp"], capture_output=True, text=True)
+    listeners = []
+    for line in r.stdout.strip().split("\n")[1:]:
+        parts = line.split()
+        if len(parts) >= 6:
+            addr = parts[3]
+            proc = parts[6] if len(parts) > 6 else ""
+            # Extract process name
+            name = ""
+            if "users:" in proc:
+                import re
+                m = re.search(r'\("([^"]+)"', proc)
+                if m:
+                    name = m.group(1)
+            listeners.append({"addr": addr, "process": name})
+
+    # Connected clients (ESTABLISHED TCP)
+    r2 = subprocess.run(["ss", "-tnp", "state", "established"], capture_output=True, text=True)
+    clients = []
+    for line in r2.stdout.strip().split("\n")[1:]:
+        parts = line.split()
+        if len(parts) >= 5:
+            local = parts[3]
+            peer = parts[4]
+            proc = parts[5] if len(parts) > 5 else ""
+            name = ""
+            if "users:" in proc:
+                import re
+                m = re.search(r'\("([^"]+)"', proc)
+                if m:
+                    name = m.group(1)
+            clients.append({"local": local, "peer": peer, "process": name})
+
+    return {"listeners": listeners, "clients": clients}

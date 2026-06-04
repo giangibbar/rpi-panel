@@ -151,11 +151,12 @@
         <button class="nav-btn" data-page="sensors-page">🌡️ Sensors</button>
         <button class="nav-btn" data-page="mqtt-page">📡 MQTT</button>
         <button class="nav-btn" data-page="git-page">🔀 Git</button>
+        <button class="nav-btn" data-page="photos-page" onclick="setTimeout(photosLoadStatus,100)">📷 Photos</button>
         <button class="nav-btn" data-page="dev-page">🐍 Dev</button>
         <button class="nav-btn" data-page="security-page">🔑 Security</button>
-        <div style="border-top:1px solid var(--overlay);margin-top:8px;padding-top:8px"><label style="font-size:10px;color:var(--subtext);padding:0 12px">APPS</label><a href="http://192.168.1.26:3001" target="_blank" class="nav-btn" style="text-decoration:none;display:block">🎉 AiFun</a>
-<a href="http://192.168.1.26:8081" target="_blank" class="nav-btn" style="text-decoration:none;display:block">⚔️ RISIKO</a>
-<a href="http://192.168.1.26:5000" target="_blank" class="nav-btn" style="text-decoration:none;display:block">🏆 FantAI</a></div><a href="/logout" class="nav-btn logout" style="text-decoration:none">🚪 Logout</a>
+        <div style="border-top:1px solid var(--overlay);margin-top:8px;padding-top:8px"><label style="font-size:10px;color:var(--subtext);padding:0 12px">APPS</label><a href="/aifun/" target="_blank" class="nav-btn" style="text-decoration:none;display:block">🎉 AiFun</a>
+<a href="/risiko/" target="_blank" class="nav-btn" style="text-decoration:none;display:block">⚔️ RISIKO</a>
+<a href="/fantai/" target="_blank" class="nav-btn" style="text-decoration:none;display:block">🏆 FantAI</a></div><a href="/logout" class="nav-btn logout" style="text-decoration:none">🚪 Logout</a>
     </div>
 
     <div id="main">
@@ -178,12 +179,21 @@
                 <button class="sub-tab" data-sub="bandwidth-page">Bandwidth</button>
             </div>
             <div class="sub-content active" id="dashboard">
+                <!-- Alerts bar -->
+                <div id="dash-alerts" style="display:none;margin-bottom:10px"></div>
+                <!-- Gauges row -->
                 <div class="cards" id="sys-cards"></div>
+                <!-- Services + Network -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                    <div class="card"><label>Services</label><div id="dash-services" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"></div></div>
+                    <div class="card"><label>Network Connections</label><div id="dash-network" style="margin-top:8px;font-size:12px;max-height:150px;overflow-y:auto"></div></div>
+                </div>
+                <!-- Processes -->
                 <div class="card" style="flex:1;overflow:auto"><label>Top Processes</label><table><thead><tr><th>PID</th><th>CPU%</th><th>MEM%</th><th>Command</th></tr></thead><tbody id="proc-body"></tbody></table></div>
             </div>
-            <div class="sub-content" id="history-page">
+            <div class="sub-content" id="history-page" style="overflow:hidden">
                 <div style="margin-bottom:12px;display:flex;gap:8px"><button class="btn btn-small btn-blue" onclick="loadHistory(1)">1h</button><button class="btn btn-small btn-blue" onclick="loadHistory(6)">6h</button><button class="btn btn-small btn-blue" onclick="loadHistory(24)">24h</button></div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1"><div class="card"><label>CPU Load</label><canvas id="chart-cpu"></canvas></div><div class="card"><label>Temperature</label><canvas id="chart-temp"></canvas></div><div class="card"><label>Memory %</label><canvas id="chart-mem"></canvas></div><div class="card"><label>Disk %</label><canvas id="chart-disk"></canvas></div></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:12px;height:calc(100vh - 160px)"><div class="card"><label>CPU Load</label><div style="position:relative;height:calc(100% - 20px)"><canvas id="chart-cpu"></canvas></div></div><div class="card"><label>Temperature</label><div style="position:relative;height:calc(100% - 20px)"><canvas id="chart-temp"></canvas></div></div><div class="card"><label>Memory %</label><div style="position:relative;height:calc(100% - 20px)"><canvas id="chart-mem"></canvas></div></div><div class="card"><label>Disk %</label><div style="position:relative;height:calc(100% - 20px)"><canvas id="chart-disk"></canvas></div></div></div>
             </div>
             <div class="sub-content" id="bandwidth-page">
                 <div class="cards" id="bw-cards"></div>
@@ -342,7 +352,7 @@
                     <div style="display:flex;justify-content:space-between;align-items:center"><label>Configured Hooks</label><button class="btn btn-green btn-small" onclick="webhookAddModal()">+ Add</button></div>
                     <div id="webhooks-list" style="margin-top:8px"></div>
                     <div style="margin-top:12px;padding:8px;background:var(--bg);border-radius:4px;font-size:11px;color:var(--subtext)">
-                        <b>GitHub Webhook URL:</b> <code>http://192.168.1.26:8080/api/webhooks/github</code><br>
+                        <b>GitHub Webhook URL:</b> <code>http://192.168.1.26/api/webhooks/github</code><br>
                         Set this in your repo → Settings → Webhooks → Payload URL
                     </div>
                 </div>
@@ -515,6 +525,37 @@
                 </div>
             </div>
         </div>
+        <div class="page" id="photos-page" style="overflow:hidden;padding:12px">
+            <div style="display:flex;gap:12px;height:calc(100vh - 80px)">
+                <!-- Left: photo list -->
+                <div style="width:420px;display:flex;flex-direction:column;overflow:hidden">
+                    <!-- USB toolbar -->
+                    <div class="card" style="display:flex;align-items:center;gap:12px;padding:10px 14px;margin-bottom:10px;flex-shrink:0">
+                        <span id="photos-usb-status" style="font-size:13px">⏳ Checking USB...</span>
+                        <button class="btn btn-green btn-small" onclick="photosMount()">🔌 Mount</button>
+                        <button class="btn btn-red btn-small" onclick="photosEject()">⏏️ Eject</button>
+                    </div>
+                    <!-- Transfer bar -->
+                    <div class="card" style="display:flex;align-items:center;gap:8px;padding:8px 14px;margin-bottom:10px;flex-shrink:0">
+                        <select id="photos-dest" style="padding:5px 8px;background:var(--bg);border:1px solid var(--overlay);border-radius:4px;color:var(--text);font-size:12px">
+                            <option value="downloads">💾 Windows Downloads</option>
+                            <option value="images">📁 RPi IMAGES</option>
+                        </select>
+                        <button class="btn btn-blue btn-small" onclick="photosTransfer()">📤 Transfer</button>
+                        <button class="btn btn-small" style="background:var(--overlay);color:var(--text)" onclick="photosSelectAll()">Select All</button>
+                        <span id="photos-sel-count" style="font-size:11px;color:var(--subtext);margin-left:auto"></span>
+                    </div>
+                    <!-- Photo list -->
+                    <div id="photos-grid" style="flex:1;overflow-y:auto;background:var(--surface);border-radius:8px;padding:4px"></div>
+                </div>
+                <!-- Right: preview panel -->
+                <div id="photos-preview-panel" style="flex:1;background:var(--surface);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px;overflow:hidden;min-height:0">
+                    <p style="color:var(--subtext);font-size:13px" id="photos-preview-hint">Click a photo to preview</p>
+                    <img id="photos-preview-img" style="max-width:100%;max-height:calc(100% - 40px);object-fit:contain;border-radius:6px;display:none">
+                    <div id="photos-preview-info" style="margin-top:8px;font-size:12px;color:var(--subtext);text-align:center;display:none"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Chat panel -->
@@ -544,7 +585,7 @@
     const pageNames={
         'monitor-page':'📊 Monitor','terminal-page':'💻 Terminal','system-page':'⚙️ System',
         'files-page':'📁 Files','network-page':'🌐 Network','hardware-page':'🔌 Hardware',
-        'sensors-page':'🌡️ Sensors','mqtt-page':'📡 MQTT','git-page':'🔀 Git','dev-page':'🐍 Dev','security-page':'🔑 Security'
+        'sensors-page':'🌡️ Sensors','mqtt-page':'📡 MQTT','git-page':'🔀 Git','photos-page':'📷 Photos','dev-page':'🐍 Dev','security-page':'🔑 Security'
     };
     function updateBreadcrumb(page,sub){
         const name=pageNames[page]||page;
@@ -595,13 +636,43 @@
     // === DASHBOARD ===
     async function loadDashboard() {
         const r=await fetch('/api/system/stats'); const d=await r.json();
+        // Gauges
         document.getElementById('sys-cards').innerHTML = `
             <div class="card">${renderGauge(parseFloat(d.load[0]),4,getColor(parseFloat(d.load[0])/4*100),'')}<div class="gauge-label">CPU Load</div></div>
             <div class="card">${renderGauge(d.mem_percent,100,getColor(d.mem_percent))}<div class="gauge-label">RAM ${d.mem_used_mb}/${d.mem_total_mb}MB</div></div>
             <div class="card">${renderGauge(d.temp_c,85,d.temp_c>70?'var(--red)':d.temp_c>55?'var(--yellow)':'var(--green)','°')}<div class="gauge-label">Temperature</div></div>
             <div class="card">${renderGauge(d.disk_percent,100,getColor(d.disk_percent))}<div class="gauge-label">Disk ${d.disk_used_gb}/${d.disk_total_gb}GB</div></div>
             <div class="card"><div class="gauge-text" style="position:static;font-size:22px;margin-top:20px">${fmtUp(d.uptime_sec)}</div><div class="gauge-label" style="margin-top:12px">Uptime</div></div>`;
+        // Services
+        if(d.services){
+            document.getElementById('dash-services').innerHTML = d.services.map(s=>
+                `<span style="padding:4px 10px;border-radius:12px;font-size:11px;font-weight:500;background:${s.active?'var(--green)':'var(--red)'};color:#1e1e2e">${s.active?'✓':'✗'} ${s.name}</span>`
+            ).join('');
+        }
+        // Alerts
+        const alerts=[];
+        if(d.temp_c>70) alerts.push({msg:`🌡️ Temperature high: ${d.temp_c}°C`,type:'red'});
+        if(d.mem_percent>90) alerts.push({msg:`💾 RAM critical: ${d.mem_percent}%`,type:'red'});
+        if(d.disk_percent>85) alerts.push({msg:`💿 Disk almost full: ${d.disk_percent}%`,type:'yellow'});
+        if(d.services) d.services.filter(s=>!s.active).forEach(s=>alerts.push({msg:`⚠️ ${s.name} is down`,type:'red'}));
+        const alertEl=document.getElementById('dash-alerts');
+        if(alerts.length){
+            alertEl.style.display='block';
+            alertEl.innerHTML=alerts.map(a=>`<div style="padding:8px 14px;border-radius:6px;margin-bottom:4px;font-size:12px;font-weight:500;background:var(--${a.type});color:#1e1e2e">${a.msg}</div>`).join('');
+        } else { alertEl.style.display='none'; }
+        // Processes
         document.getElementById('proc-body').innerHTML = d.processes.map(p=>`<tr><td>${p.pid}</td><td>${p.cpu}</td><td>${p.mem}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.cmd}</td></tr>`).join('');
+        // Network (load separately, less frequent)
+        loadConnections();
+    }
+    async function loadConnections(){
+        try{
+            const r=await fetch('/api/system/connections');const d=await r.json();
+            const el=document.getElementById('dash-network');
+            const clients=d.clients.filter(c=>!c.peer.startsWith('127.'));
+            el.innerHTML=`<div style="color:var(--subtext);margin-bottom:4px">${clients.length} external connection${clients.length!==1?'s':''} · ${d.listeners.length} listening ports</div>`+
+                clients.slice(0,10).map(c=>`<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid var(--overlay)"><span>${c.peer.split(':')[0]}</span><span style="color:var(--subtext)">→ :${c.local.split(':').pop()}</span><span style="color:var(--green)">${c.process}</span></div>`).join('');
+        }catch(e){}
     }
     function fmtUp(s){const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?`${d}d ${h}h`:`${h}h ${m}m`;}
     loadDashboard(); setInterval(loadDashboard,5000);
@@ -611,7 +682,7 @@
     async function loadHistory(hours=6) {
         const r=await fetch(`/api/history/?hours=${hours}`); const d=await r.json();
         const labels = d.timestamps.map(t=>new Date(t*1000).toLocaleTimeString());
-        const opts = {responsive:true,plugins:{legend:{display:false}},scales:{x:{display:false},y:{beginAtZero:false}},elements:{point:{radius:0},line:{borderWidth:2}}};
+        const opts = {responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{enabled:true}},scales:{x:{display:true,ticks:{maxTicksLimit:8,font:{size:10},color:'#a6adc8'}},y:{beginAtZero:false}},elements:{point:{radius:0,hitRadius:10},line:{borderWidth:2}},animation:false};
         ['cpu','temp','mem','disk'].forEach((k,i)=>{
             const id='chart-'+k; const data=d[['cpu_load','temp','mem_percent','disk_percent'][i]];
             const colors=['#89b4fa','#f38ba8','#a6e3a1','#f9e2af'];
@@ -1433,6 +1504,77 @@
     // Auto-init MQTT when page shown
     const _origNav=document.querySelectorAll('.nav-btn[data-page]');
     _origNav.forEach(b=>b.addEventListener('click',()=>{if(b.dataset.page==='mqtt-page'){initMqttLive();loadMqttTopics();loadAllMessages();}}));
+
+    // === PHOTOS ===
+    let _photosData=[], _selectedPhotos=new Set();
+    async function photosLoadStatus(){
+        const r=await fetch('/api/photos/status');const d=await r.json();
+        const el=document.getElementById('photos-usb-status');
+        if(d.mounted){el.innerHTML=`✅ USB mounted — <b>${d.photo_count}</b> photos`;photosLoadList();}
+        else{el.innerHTML='❌ USB not mounted';document.getElementById('photos-grid').innerHTML='<p style="color:var(--subtext);padding:20px">Insert USB and click Mount</p>';}
+    }
+    async function photosLoadList(){
+        const r=await fetch('/api/photos/list');const d=await r.json();_photosData=d.photos;
+        const grid=document.getElementById('photos-grid');
+        grid.innerHTML=`<table style="width:100%;font-size:12px"><thead><tr><th style="width:30px"><input type="checkbox" onchange="photosSelectAll(this.checked)"></th><th>Name</th><th>Date</th><th>Size</th></tr></thead><tbody>`+
+        _photosData.map(p=>{
+            const date=new Date(p.modified*1000).toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'numeric'});
+            const size=(p.size/1048576).toFixed(1)+' MB';
+            return `<tr class="photo-row" data-name="${p.name}" onclick="photosRowClick(this,'${p.name}')" style="cursor:pointer;transition:background .1s"><td><input type="checkbox" class="photo-cb" data-name="${p.name}" onclick="event.stopPropagation();photosToggleCb('${p.name}',this.checked)"></td><td>${p.name}</td><td style="color:var(--subtext)">${date}</td><td style="color:var(--subtext)">${size}</td></tr>`;
+        }).join('')+'</tbody></table>';
+        document.getElementById('photos-sel-count').textContent='';
+    }
+    function photosRowClick(el,name){
+        photosShowPreview(name);
+        el.closest('tbody').querySelectorAll('tr').forEach(r=>r.style.background='');
+        el.style.background='var(--overlay)';
+    }
+    function photosToggleCb(name,checked){
+        if(checked)_selectedPhotos.add(name);else _selectedPhotos.delete(name);
+        document.getElementById('photos-sel-count').textContent=_selectedPhotos.size?_selectedPhotos.size+' selected':'';
+    }
+    function photosSelectAll(checked){
+        const cbs=document.querySelectorAll('.photo-cb');
+        if(checked===undefined)checked=_selectedPhotos.size!==_photosData.length;
+        _selectedPhotos.clear();
+        cbs.forEach(cb=>{cb.checked=checked;if(checked)_selectedPhotos.add(cb.dataset.name);});
+        document.getElementById('photos-sel-count').textContent=_selectedPhotos.size?_selectedPhotos.size+' selected':'';
+    }
+    function photosShowPreview(name){
+        const img=document.getElementById('photos-preview-img');
+        const info=document.getElementById('photos-preview-info');
+        const hint=document.getElementById('photos-preview-hint');
+        img.src=`/api/photos/preview/${name}`;img.style.display='block';hint.style.display='none';
+        info.style.display='block';
+        const p=_photosData.find(x=>x.name===name);
+        info.textContent=p?`${p.name} — ${(p.size/1048576).toFixed(1)} MB`:'';
+    }
+    async function photosTransfer(){
+        if(!_selectedPhotos.size){toast('Select photos first','warning');return;}
+        const dest=document.getElementById('photos-dest').value;
+        if(dest==='downloads'){
+            // Download each file via browser
+            for(const name of _selectedPhotos){
+                const a=document.createElement('a');a.href=`/api/photos/download/${name}`;a.download=name;a.click();
+                await new Promise(r=>setTimeout(r,300));
+            }
+            toast(`Downloading ${_selectedPhotos.size} photos`,'success');
+        } else {
+            const r=await fetch('/api/photos/transfer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({files:[..._selectedPhotos],destination:dest})});
+            const d=await r.json();
+            toast(`Transferred ${d.copied} photos to IMAGES`,'success');
+        }
+    }
+    async function photosMount(){
+        const r=await fetch('/api/photos/mount',{method:'POST'});const d=await r.json();
+        toast(d.status==='mounted'?'USB mounted':'Already mounted','success');photosLoadStatus();
+    }
+    async function photosEject(){
+        const r=await fetch('/api/photos/eject',{method:'POST'});const d=await r.json();
+        toast(d.status==='ejected'?'USB ejected safely ✓':'Not mounted','info');photosLoadStatus();
+    }
+    // Auto-load photos when page shown
+    document.querySelectorAll('.nav-btn[data-page]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.page==='photos-page')photosLoadStatus();}));
 
     // === MODAL ===
     function showModal(html){document.getElementById('modal-content').innerHTML=html;document.getElementById('modal').classList.add('show');}

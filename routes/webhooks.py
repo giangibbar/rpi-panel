@@ -19,10 +19,10 @@ def load_hooks() -> list:
     if HOOKS_FILE.exists():
         return json.loads(HOOKS_FILE.read_text())
     return [
-        {"id": "deploy-web-terminal", "repo": "giangibbar/rpi-panel", "action": "/home/egamgia/deploy.sh web-terminal", "secret": "", "enabled": True},
-        {"id": "deploy-risiko", "repo": "giangibbar/RISIKO", "action": "/home/egamgia/deploy.sh risiko", "secret": "", "enabled": True},
-        {"id": "deploy-aifun", "repo": "giangibbar/aifun", "action": "/home/egamgia/deploy.sh aifun", "secret": "", "enabled": True},
-        {"id": "deploy-fantai", "repo": "giangibbar/FantAI", "action": "/home/egamgia/deploy.sh fantai", "secret": "", "enabled": True},
+        {"id": "deploy-web-terminal", "repo": "giangibbar/rpi-panel", "action": "/home/egamgia/SCRIPTS/deploy.sh web-terminal", "secret": "", "enabled": True},
+        {"id": "deploy-risiko", "repo": "giangibbar/RISIKO", "action": "/home/egamgia/SCRIPTS/deploy.sh risiko", "secret": "", "enabled": True},
+        {"id": "deploy-aifun", "repo": "giangibbar/aifun", "action": "/home/egamgia/SCRIPTS/deploy.sh aifun", "secret": "", "enabled": True},
+        {"id": "deploy-fantai", "repo": "giangibbar/FantAI", "action": "/home/egamgia/SCRIPTS/deploy.sh fantai", "secret": "", "enabled": True},
     ]
 
 

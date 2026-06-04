@@ -2,7 +2,7 @@ import hashlib
 import os
 import secrets
 from fastapi import FastAPI, Request, Cookie
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, ORJSONResponse
 from pathlib import Path
 
 from routes.terminal import router as terminal_router
@@ -40,8 +40,9 @@ from routes.mqtt import router as mqtt_router
 from routes.git import router as git_router
 from routes.speedtest import router as speedtest_router
 from routes.webhooks import router as webhooks_router
+from routes.photos import router as photos_router
 
-app = FastAPI()
+app = FastAPI(default_response_class=ORJSONResponse)
 
 # Auth
 USERNAME = os.environ.get("TERM_USER", "admin")
@@ -96,6 +97,7 @@ app.include_router(mqtt_router, prefix="/api/mqtt")
 app.include_router(git_router, prefix="/api/git")
 app.include_router(speedtest_router, prefix="/api/speedtest")
 app.include_router(webhooks_router, prefix="/api/webhooks")
+app.include_router(photos_router, prefix="/api/photos")
 
 
 @app.post("/login")
