@@ -7,10 +7,9 @@ A complete web-based management panel for Raspberry Pi 4, built with **FastAPI +
 ## ✨ Features
 
 ### 📊 Monitor
-- **Dashboard** — CPU, RAM, temperature, disk, uptime, top processes (auto-refresh)
-- **History** — Charts (1h/6h/24h) for CPU load, temperature, memory, disk usage
+- **Dashboard** — Animated gauges (CPU, RAM, temperature, disk), uptime, services status pills, alert banners (temp >70°C, RAM >90%, disk >85%, service down), network connections, top processes (auto-refresh 5s)
+- **History** — Full-screen charts (1h/6h/24h) for CPU load, temperature, memory, disk usage
 - **Bandwidth** — Real-time network traffic (upload/download speed per interface)
-- **Alerts** — Configurable thresholds with banner notifications
 
 ### 💻 Terminal
 - Full PTY terminal in the browser (xterm.js)
@@ -57,6 +56,13 @@ A complete web-based management panel for Raspberry Pi 4, built with **FastAPI +
 - **WebSocket** — Real-time message stream without polling
 - **Broker status** — Mosquitto active/inactive, connected clients count
 
+### 📷 Photos
+- **USB auto-mount** — udev rule detects USB insertion, mounts to `/media/usb`
+- **Photo list** — Browse RAF/JPG files with name, date, size
+- **RAF preview** — Full-size preview panel (extracted embedded JPEG from Fuji RAW)
+- **Transfer** — Download selected photos to Windows or copy to RPi `~/IMAGES`
+- **Mount/Eject** — Safe USB mount and eject buttons
+
 ### 🔀 Git
 - **Projects sidebar** — All tracked repos with status (clean/modified count)
 - **File list** — Checkboxes to select which files to commit, status labels (NEW/MOD/DEL)
@@ -91,7 +97,7 @@ A complete web-based management panel for Raspberry Pi 4, built with **FastAPI +
 - **Inter + JetBrains Mono** fonts
 - **Grouped navigation** — 8 categories with sub-tabs
 - **GPIO sensor labels** — shows what's connected to each pin
-- **Quick links** — sidebar shortcut to other apps (AiFun on port 3001)
+- **Quick links** — sidebar shortcuts to other apps (AiFun, RISIKO, FantAI via nginx)
 
 ## 🚀 Installation
 
@@ -121,7 +127,7 @@ nano .env  # Set your username and password
 python main.py
 ```
 
-Open **http://YOUR_PI_IP:8080** in your browser.
+Open **http://YOUR_PI_IP** in your browser (nginx reverse proxy on port 80).
 
 ### Production (systemd)
 
@@ -212,6 +218,7 @@ rpi-panel/
     ├── sensors.py       # IoT sensors + MQTT bridge
     ├── mqtt.py          # MQTT broker management + live WebSocket
     ├── git.py           # Git project management (status, diff, push, pull)
+    ├── photos.py        # Photo management (USB mount, RAF preview, transfer)
     └── exec.py          # Remote command execution API
 ```
 
