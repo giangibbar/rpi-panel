@@ -86,6 +86,7 @@ A complete web-based management panel for Raspberry Pi 4, built with **FastAPI +
 - Server status (online/offline, tool count)
 - Interactive console: select tool, fill params, execute, see output
 - Tool catalog with descriptions and parameters
+- Call log: last 50 calls with time, tool, args, duration, status
 - Connects to local MCP server (port 8002) via SSE
 
 ### 🤖 AI Chat

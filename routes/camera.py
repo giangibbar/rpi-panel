@@ -24,6 +24,11 @@ async def snapshot():
 @router.get("/status")
 async def camera_status():
     """Check if camera is available."""
-    r = subprocess.run(["libcamera-hello", "--list-cameras"], capture_output=True, text=True, timeout=5)
-    available = "Available cameras" in r.stdout and "No cameras" not in r.stdout
-    return {"available": available, "info": r.stdout.strip()}
+    try:
+        r = subprocess.run(["libcamera-hello", "--list-cameras"], capture_output=True, text=True, timeout=5)
+        available = "Available cameras" in r.stdout and "No cameras" not in r.stdout
+        return {"available": available, "info": r.stdout.strip()}
+    except FileNotFoundError:
+        return {"available": False, "info": "libcamera not installed"}
+    except Exception as e:
+        return {"available": False, "info": str(e)}
