@@ -77,15 +77,16 @@ A complete web-based management panel for Raspberry Pi 4, built with **FastAPI +
 - **Ollama** — Status, install, pull models
 
 ### 🔑 Security
+- **SSH Keys** — View/add/remove authorized keys
+- **Auth Logs** — Failed SSH attempts, security log
+- **Clipboard** — Shared text between PC and Pi
+- **Backups** — Create/restore/delete tar.gz backups
+
 ### 🔧 MCP Server
 - Server status (online/offline, tool count)
 - Interactive console: select tool, fill params, execute, see output
 - Tool catalog with descriptions and parameters
 - Connects to local MCP server (port 8002) via SSE
-- **SSH Keys** — View/add/remove authorized keys
-- **Auth Logs** — Failed SSH attempts, security log
-- **Clipboard** — Shared text between PC and Pi
-- **Backups** — Create/restore/delete tar.gz backups
 
 ### 🤖 AI Chat
 - Floating chat panel (accessible from any page via 🤖 button in topbar)
