@@ -40,6 +40,7 @@ from routes.mqtt import router as mqtt_router
 from routes.git import router as git_router
 from routes.speedtest import router as speedtest_router
 from routes.webhooks import router as webhooks_router
+from routes.mcp import router as mcp_router
 from routes.photos import router as photos_router
 
 app = FastAPI(default_response_class=ORJSONResponse)
@@ -97,6 +98,7 @@ app.include_router(mqtt_router, prefix="/api/mqtt")
 app.include_router(git_router, prefix="/api/git")
 app.include_router(speedtest_router, prefix="/api/speedtest")
 app.include_router(webhooks_router, prefix="/api/webhooks")
+app.include_router(mcp_router, prefix="/api/mcp")
 app.include_router(photos_router, prefix="/api/photos")
 
 

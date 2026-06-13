@@ -1,0 +1,51 @@
+import json
+import httpx
+from fastapi import APIRouter
+
+router = APIRouter()
+MCP_URL = "http://127.0.0.1:8002/mcp/"
+HEADERS = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+
+async def mcp_request(payload, timeout=30):
+    async with httpx.AsyncClient() as c:
+        async with c.stream("POST", MCP_URL, headers=HEADERS, json=payload, timeout=timeout) as r:
+            async for line in r.aiter_lines():
+                if line.startswith("data: "):
+                    return json.loads(line[6:])
+    return None
+
+@router.get("/status")
+async def mcp_status():
+    try:
+        data = await mcp_request({"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}})
+        if data:
+            tools = data.get("result", {}).get("tools", [])
+            return {"online": True, "tool_count": len(tools)}
+        return {"online": False, "tool_count": 0}
+    except Exception:
+        return {"online": False, "tool_count": 0}
+
+@router.get("/tools")
+async def mcp_tools():
+    try:
+        data = await mcp_request({"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}})
+        if data:
+            return data.get("result", {}).get("tools", [])
+        return []
+    except Exception:
+        return []
+
+@router.post("/call")
+async def mcp_call(body: dict):
+    tool = body.get("tool", "")
+    args = body.get("arguments", {})
+    try:
+        data = await mcp_request({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name": tool, "arguments": args}}, timeout=90)
+        if data:
+            result = data.get("result", {})
+            content = result.get("content", [])
+            text = content[0].get("text", "") if content else ""
+            return {"ok": True, "result": text, "error": result.get("isError", False)}
+        return {"ok": False, "result": "No response", "error": True}
+    except Exception as e:
+        return {"ok": False, "result": str(e), "error": True}
