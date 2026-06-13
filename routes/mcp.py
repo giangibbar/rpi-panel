@@ -61,4 +61,12 @@ async def mcp_call(body: dict):
 
 @router.get("/log")
 async def mcp_log():
+    # Try server-side log first (captures all calls including direct MCP)
+    from pathlib import Path
+    log_file = Path("/home/egamgia/mcp-server/calls.json")
+    if log_file.exists():
+        try:
+            return json.loads(log_file.read_text())[:50]
+        except Exception:
+            pass
     return list(call_log)
